@@ -719,25 +719,85 @@ kubectl get pod --selector app=store-front -o wide
 
 # Application and Cluster Scaling
 
-AKS Node Autoprovisioning (NAP via Karpenter) simplifies application scaling on Kubernetes by automatically adjusting the number of nodes based on workload demands. When resource needs increase, AKS NAP provisions new nodes to ensure consistent application performance, reducing the need for manual intervention and optimizing resource utilization.
+In a enterprise production environment, the demands and resource useage of your workloads running on Azure Kubernetes Service (AKS) can be dynamic and change frequently. If your application requires more resources from the cluster, the cluster could be impacted due to the lack of resources. One of the easiest ways to ensure your applications have enough resources from the cluster, is to scale your cluster to include more working nodes.
 
-Similarly, NAP efficiently scales down by removing underutilized nodes when demand decreases, cutting costs and preventing resource waste.
+There are two ways to accomplish adding more nodes to your AKS cluster. You can manually scale out your cluster, or you can configure cluster autoscaler to automatically adjust to the demands of your application and automatically scale the number of nodes for you. We'll look at how you can do each.
 
-## Manual application scaling (deployment)
+## Manually scaling your cluster
 
-Update nodepool to use smaller VM sizes
+Manually scaling your cluster give you the ability to add or remove additional nodes to the cluster at any point in time. Using manual scaling is good for dev/test and/or small production environments where reacting to changing workload utilization is not that important. In most production environments, you will want to set policies based on conditions to scale your cluster in a more automated fashion. Manually scaling you cluster gives you the ability to scale your cluster at the exact time you want, but your applications could potentially be in a degraded and/or offline state while the cluster is scaling up.
 
-Update the store-front deployment to have 10 replicas:
+<div class="task" data-title="Task">
 
-Note how Karpeneter is used to automatically scale the node pool to accommodate the new pods.
-
-view the nodes
+> Open the terminal and run the following command to view and get the name of the AKS node pools
 
 ```bash
-kubectl get nodes -o custom-columns=NAME:'{.metadata.name}',OS:'{.status.nodeInfo.osImage}',SKU:'{.metadata.labels.karpenter\.azure\.com/sku-name}' -w
+az aks show --resource-group myResourceGroup --name myAKSCluster --query agentPoolProfiles
 ```
 
-Scale it back down to 1
+The following is a condensed example output from the previous command. We're focused on getting the name property from the output. The output should look similar to:
+
+```bash
+[
+  {
+    "count": 3,
+    "maxPods": 250,
+    "name": "systempool",
+    "osDiskSizeGb": 30,
+    "osType": "Linux",
+    "vmSize": "Standard_DS2_v2"
+  }
+]
+```
+
+Using the previous output name property, we will now scale the cluster up.
+
+<div class="task" data-title="Task">
+
+> Scale the cluster up by adding one additional node
+
+```bash
+az aks scale --resource-group myResourceGroup --name myAKSCluster --node-count 4 --nodepool-name <your node pool name>
+```
+
+Scaling will take a few moments. You should see the scaling activity running in your terminal.
+
+```bash
+ | Running ..
+```
+
+Once the scaling up is complete, you should see something similar as the completion output below:
+
+```bash
+{
+  "aadProfile": null,
+  "addonProfiles": null,
+  "agentPoolProfiles": [
+    {
+      "count": 4,
+      "maxPods": 250,
+      "name": "systempool",
+      "osDiskSizeGb": 30,
+      "osType": "Linux",
+      "vmSize": "Standard_DS2_v2",
+      "vnetSubnetId": null
+    }
+  ],
+  [...]
+}
+```
+
+Notice the count property increased.
+
+We will now manually scale the cluster down by one node.
+
+<div class="task" data-title="Task">
+
+> Scale the cluster down by removing one additional node
+
+```bash
+az aks scale --resource-group myResourceGroup --name myAKSCluster --node-count 3 --nodepool-name <your node pool name>
+```
 
 ## HPA
 
