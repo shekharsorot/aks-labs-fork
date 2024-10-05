@@ -843,33 +843,248 @@ Run load generator again, and see it in action.
 
 # Handling Stateful Workloads
 
-Container storage is ephemeral. If a pod is deleted, the data is lost. To persist data, you need to use persistent volumes.
+Container storage is ephemeral; that is if a pod is deleted, the data is lost because by default, data is saved within the container. In order to persist the data, you need to use [Persistent Volume (PV)](https://kubernetes.io/docs/concepts/storage/persistent-volumes/) and [Persistent Volume Claim (PVC)](https://kubernetes.io/docs/concepts/storage/persistent-volumes/#persistentvolumeclaims).
 
 ## AKS Storage classes and PVC's
 
-Create PVC that leverages AKS storage classes 
+Typically for persistent storage in a Kubernetes cluster, you would create a PV to allocate storage and use a PVC to request a slice storage against the PV.
+
+With AKS, [Azure CSI drivers and storage classes](https://learn.microsoft.com/azure/aks/csi-storage-drivers) are pre-deployed into your cluster. The storage classes allow you to simply create a PVC that references a particular storage class based on your application requirements. This storage class will take care of the task of creating the PV for you, in this case, using Azure Storage. So AKS removes the need to manually create PV's.
+
+Run the following command to get the list of storage classes in your AKS cluster.
 
 ```bash
 kubectl get storageclasses
 ```
 
-We'll create a PVC using the `managed-csi` storage class. This will create a managed disk in Azure.
-Reference: https://www.rabbitmq.com/docs/relocate
+We need to update the RabbitMQ StatefulSet to use a PVC. Run the following command to get the YAML manifest for the RabbitMQ StatefulSet.
+
+```bash
+kubectl get statefulset rabbitmq -o yaml > rabbitmq-statefulset.yaml
+```
+
+Open the `rabbitmq-statefulset.yaml` file using the nano text editor.
+
+```bash
+nano rabbitmq-statefulset.yaml
+```
+
+Add the following PVC spec to the `rabbitmq-statefulset.yaml` file. This will create a PVC that requests 1Gi of storage using the `managed-csi` storage class.
+
+```yaml
+  volumeClaimTemplates:
+  - metadata:
+      name: rabbitmq-data
+    spec:
+      storageClassName: managed-csi
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 1Gi
+```
+
+<div class="info" data-title="Note">
+
+> There are many `spec` items in the manifest, you want to add the code snippet at the top of the first `spec` section
+
+</div>
+
+Keep the file open, navigate to the pod template spec and add an additional volume that references the PVC.
+
+```yaml
+      - name: rabbitmq-data
+        persistentVolumeClaim:
+          claimName: rabbitmq-data
+```
+
+Finally in the container spec, add a volume mount that references the volume.
+
+```yaml
+        - mountPath: /var/lib/rabbitmq/mnesia
+          name: rabbitmq-data
+```
+
+Save the file and exit the nano text editor.
+
+<div class="info" data-title="Info">
+
+> For more information on RabbitMQ and persistent storage, see the [RabbitMQ documentation](https://www.rabbitmq.com/docs/relocate) and this [blog post](https://www.rabbitmq.com/blog/2020/08/10/deploying-rabbitmq-to-kubernetes-whats-involved).
+
+</div>
+
+Run the following command to replace the RabbitMQ StatefulSet with the updated manifest.
+
+```bash
+kubectl delete statefulset rabbitmq
+kubectl apply -f rabbitmq-statefulset.yaml
+```
+
+A `volumeClaimTemplates` section was added to the RabbitMQ StatefulSet manifest. This section defines a PVC that requests 1Gi of storage using the `managed-csi` storage class. The PVC is automatically created by the storage class and is bound to an Azure Disk.
+
+You can check the status of the PVC by running the following command.
+
+```bash
+kubectl get pvc
+```
+
+If you see STATUS as `Bound`, the PVC has been successfully created and is ready to be used by the RabbitMQ pod. You can also see that the Azure Disk has been created in the AKS cluster's managed resource group by running the following command.
+
+```bash
+az resource list \
+  -g $(az aks show --name $AKS_NAME --resource-group $RG_NAME --query nodeResourceGroup -o tsv) \
+  --resource-type Microsoft.Compute/disks \
+  --query "[?contains(name, 'pvc')]" \
+  -o table 
+```
+
+Now, let's test the durability of the RabbitMQ data by creating a queue and then deleting the RabbitMQ pod. Run the following command to port-forward to the RabbitMQ management UI.
+
+```bash
+kubectl port-forward svc/rabbitmq 15672:15672
+```
+
+Open a browser and navigate to `http://localhost:15672`. Log in with the username `username` and password `password`. Click on the **Queues** tab then click on **Add a new queue** and create a new queue called `test`.
+
+<div class="info" data-title="Note">
+
+> Make sure the **Durability** option is set to **Durable**. This will ensure that the queue is persisted to disk.
+
+</div>
+
+Back in the terminal, run the following command to delete the RabbitMQ pod.
+
+```bash
+kubectl delete pod rabbitmq-0
+```
+
+After a few seconds, Kubernetes will do what it does best and recreate the RabbitMQ pod. At this point the port-forward to the RabbitMQ service will be broken, so run the port-forward command again and reload the RabbitMQ management UI in the browser. Navigate back to the **Queues** tab and you should see the `test` queue you created earlier. This is because the we mounted the Azure Disk to the `/var/lib/rabbitmq/mnesia` path and all RabbitMQ data now persists across pod restarts.
 
 ## Replace RabbitMQ with Azure Service Bus
 
-Moving to a managed service like Azure Service Bus can help you avoid the overhead of managing RabbitMQ.
+As you can see, Kubernetes is great for stateless applications especially with Azure storage backing it. But running stateful applications like RabbitMQ in a highly available and durable way can be challenging and might not be something you would want to manage yourself. This is where integrating with a managed service like [Azure Service Bus](https://learn.microsoft.com/azure/service-bus-messaging/service-bus-messaging-overview) can help. Azure Service Bus is a fully managed enterprise message broker with message queues and publish-subscribe topics very similar to RabbitMQ. The sample application has been written to use the AMQP protocol which is supported by both RabbitMQ and Azure Service Bus, so we can easily switch between the two.
 
-Create Azure Service Bus namespace
-Create a new queue
-Create a ConfigMap with the service bus info
-Create a managed identity
+### Create Azure Service Bus namespace and queue
 
-Use ServiceConnector to connect to the service bus
+In the Azure portal, search for **Service Bus**, click on **Service Bus** under **Services** then click on the **Create service bus namespace** button.
 
-update the order-service deployment to use the service bus
+![](https://placehold.co/800x400)
 
-submit orders and view orders in service bus explorer on azure portal
+Fill in the required fields and click **Create**.
+
+- Resource group: Select the resource group where your AKS cluster is deployed.
+- Namespace name: Enter a unique name for the namespace (should be globally unique and lower case).
+- Location: Select the same location as your AKS cluster.
+- Pricing tier: Select **Basic**.
+
+Click on the **Review + create** button then click **Create**.
+
+Once the namespace is created, click on the **Go to resource** button. 
+
+![](https://placehold.co/800x400)
+
+In the **Overview** section, click on the **+ Queue** button at the top to create a new queue. 
+
+![](https://placehold.co/800x400)
+
+In the **Create queue** window, set the name of the queue to `orders` and click **Create**.
+
+![](https://placehold.co/800x400)
+
+### Create a user-assigned managed identity
+
+In order for the order-service application to authenticate with Azure Service Bus, we need to create a user-assigned managed identity. In the Azure portal, search for **Managed Identities**, click on **Managed Identities** under **Services** then click on the **+ Create** button.
+
+Fill in the required fields
+
+- Resource group: Select the resource group where your AKS cluster is deployed.
+- Name: You can use the same name as the Service Bus namespace.
+
+Click **Review + create** then click **Create**.
+
+### Integrate Azure Service Bus with AKS using Service Connector
+
+Here is where the authentication magic happens. We will use the [Service Connector](https://learn.microsoft.com/azure/service-connector/overview) to connect the order-service application to Azure Service Bus. The AKS Service Connector is a new feature that greatly simplifies the process of configuring Workload Identity for your applications running on AKS. Workload Identity is a feature that allows you to assign an identity to a Pod and use that identity to authenticate with Microsoft Entra ID to access Azure services.
+
+<div class="info" data-title="Note">
+
+> Workload Identity is the recommended way to authenticate with Azure services from your applications running on AKS. It is more secure than using service principals and does not require you to manage credentials in your application. To read more about Workload Identity, see [this doc](https://azure.github.io/azure-workload-identity/docs/).
+
+</div>
+
+In the Azure portal, navigate to the AKS cluster you created earlier. In the left-hand menu, click on **Service Connector (Preview)** under **Settings** then click on the **Connect to your services** button.
+
+![](https://placehold.co/800x400)
+
+In the **Basics** tab, enter the following details:
+
+- Kubernetes namespace: Enter **default**
+- Service type: Select **Service Bus**
+
+Leave the rest of the fields as their default values and click **Next: Authentication**.
+
+In the **Authentication** tab, select the **Workload Identity** option and select the user-assigned managed identity you created earlier. 
+
+Click **Next: Networking** then click **Review + create** and finally click **Create**.
+
+<div class="info" data-title="Note">
+
+> This process will take a few minutes as the Service Connector does some work behind the scenes to configure Workload Identity for the order-service application. Some of the tasks include assigning the proper Azure role permissions to the managed identity to access the Service Bus, creating a Federated Credential to establish trust between the Kubernetes cluster and the managed identity, creating a Kubernetes Service Account with a link back to the managed identity, and finally creating a Kubernetes Secret with the Service Bus endpoint information.
+
+</div>
+
+Once the Service Connector has been created, you can configure the order-service application to use the Service Bus connection details.
+
+Staying the Service Connector page, select the checkbox next to the Service Bus connection and click the **Yaml snippet** button.
+
+In the **YAML snippet** window, select **Kubernetes Workload** for **Resource type**, then select **order-service** for **Kubernetes Workload**.
+
+You will see the YAML manifest for the order-service application with the edits required to connect to Azure Service Bus via Workload Identity. 
+
+![](https://placehold.co/800x400) 
+
+Click **Apply** to apply the changes to the order-service application. This will redeploy the order-service application with the new connection details. But since the original order-service deployment was created specifically to connect to RabbitMQ, we need to update the deployment to remove some of the RabbitMQ specific information.
+
+The order-service is designed to use multiple authentication methods. We need to add one environment variable to the order-service deployment to tell it to connect to the Azure Service Bus using workload identity. Run the following command to get the YAML manifest for the order-service deployment.
+
+```bash
+kubectl patch deployment order-service --type='json' -p='[
+  {
+    "op": "add",
+    "path": "/spec/template/spec/containers/0/env/-",
+    "value": {
+      "name": "USE_WORKLOAD_IDENTITY_AUTH",
+      "value": "true"
+    }
+  }
+]'
+```
+
+Run the following command to patch the order-service deployment to remove the RabbitMQ specific information.
+
+```bash
+kubectl patch deployment order-service --type='json' -p='[
+  { "op": "remove", "path": "/spec/template/spec/containers/0/env/0" },
+  { "op": "remove", "path": "/spec/template/spec/containers/0/env/1" },
+  { "op": "remove", "path": "/spec/template/spec/containers/0/env/2" },
+  { "op": "remove", "path": "/spec/template/spec/containers/0/env/3" },
+  { "op": "remove", "path": "/spec/template/spec/initContainers" }
+]'
+```
+
+We also don't need the RabbitMQ service anymore, so we can delete it.
+
+```bash
+kubectl delete statefulset rabbitmq
+kubectl delete service rabbitmq
+```
+
+Now, if we browse to the store-front application, add an item to the cart, and checkout, you should see the order appear in the Azure Service Bus queue. To view the message in the queue, you can use the Azure portal or the Azure CLI.
+
+```bash
+SERVICEBUS_NAME=$(az servicebus namespace list -g $RG_NAME --query "[0].name" -o tsv) 
+az servicebus queue show --resource-group $RG_NAME --namespace-name $SERVICEBUS_NAME --name orders --query "countDetails.activeMessageCount"
+```
 
 ---
 
