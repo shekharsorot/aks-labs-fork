@@ -1451,6 +1451,7 @@ If you click on the **Logs** section in the left-hand menu, you can view the log
 
 ![Azure portal AKS logs queries](./assets/azure-portal-aks-container-logs.png)
 
+You can also view live streaming logs for a specific container by clicking on the **Workloads** section in the left-hand menu. In the **Deployments** tab, scroll down and locate the **order-service** deployment. Click on the **order-service** deployment to view the details. In the left-hand menu, click on **Live logs**, then select the Pod you want to view logs for.
 ![Azure portal AKS live logs](./assets/azure-portal-aks-live-logs.png)
 
 This is the equivalent of running `kubectl logs -f <pod-name>` in the terminal.
