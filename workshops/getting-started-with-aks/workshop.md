@@ -2003,7 +2003,236 @@ These should be enough to get you started. Feel free to explore the other dashbo
 
 ---
 
-## Scaling your app
+## Application and Cluster Scaling
+
+In a enterprise production environment, the demands and resource usage of your workloads running on Azure Kubernetes Service (AKS) can be dynamic and change frequently. If your application requires more resources, it could be impacted due to the lack of clusters resources. One of the easiest ways to ensure your applications have enough resources from the cluster, is to scale your cluster to include more working nodes.
+
+There are several scenarios that would require your application and/or cluster the need to scale. If your application needs to respond to increased demand, we can scale your application across the cluster to meet demand. If your application has used all of the available resources from the cluster, we can scale the number of nodes in the cluster to meet demand as well.
+
+We will walk through the most popular options that allow you to scale your application and cluster to meet your workload demands.
+
+### Manually scaling your cluster
+
+Manually scaling your cluster gives you the ability to add or remove additional nodes to the cluster at any point in time, adding additional hardware resources to your cluster. Using manual scaling is good for dev/test and/or small production environments where reacting to changing workload utilization is not that important. In most production environments, you will want to set policies based on conditions to scale your cluster in a more automated fashion. Manually scaling you cluster gives you the ability to scale your cluster at the exact time you want, but your applications could potentially be in a degraded and/or offline state while the cluster is scaling up.
+
+<div class="task" data-title="Task">
+
+> Open the terminal and run the following command to view the current count of the node pools of the AKS cluster
+
+```bash
+az aks show --resource-group myResourceGroup --name myAKSCluster --query "agentPoolProfiles[].{count: count, name: name}"
+```
+
+The following is example output from the previous command:
+
+```bash
+[
+  {
+    "count": 3,
+    "name": "systempool"
+  }
+]
+```
+
+Using the previous output name property, we will now scale the cluster up.
+
+<div class="task" data-title="Task">
+
+> Scale the cluster up by adding one additional node
+
+```bash
+az aks scale --resource-group myResourceGroup --name myAKSCluster --node-count 4 --nodepool-name <your node pool name>
+```
+
+Scaling will take a few moments. You should see the scaling activity running in your terminal.
+
+```bash
+ | Running ..
+```
+
+Once the scaling up is complete, you should see something similar as the completion output below:
+
+```bash
+{
+  "aadProfile": null,
+  "addonProfiles": null,
+  "agentPoolProfiles": [
+    {
+      "count": 4,
+      "maxPods": 250,
+      "name": "systempool",
+      "osDiskSizeGb": 30,
+      "osType": "Linux",
+      "vmSize": "Standard_DS2_v2",
+      "vnetSubnetId": null
+    }
+  ],
+  [...]
+}
+```
+
+Notice the count property increased.
+
+We will now manually scale the cluster down by one node.
+
+<div class="task" data-title="Task">
+
+> Scale the cluster down by removing one additional node
+
+```bash
+az aks scale --resource-group myResourceGroup --name myAKSCluster --node-count 3 --nodepool-name <your node pool name>
+```
+
+### Manually scaling your application
+
+In addition to you being able to manually scale the number of nodes in your cluster to add additional hardware resources, you can also manually scale your application workloads deployed in the cluster. In the scenario where your application is experiencing a lot of transactions, such as client interactions or internal API processing, you can manually scale the deployment to increase the number of replicas (instances) running to handle additional load. 
+
+In the following example, we will view the current number of replicas running for the `store-front` service and then increase the number of replicas to 10.
+
+<div class="task" data-title="Task">
+
+> View the current number of replicas for the store-front service
+
+```bash
+kubectl get deployment store-front
+```
+
+You should see the following output.
+
+```bash
+NAME          READY   UP-TO-DATE   AVAILABLE   AGE
+store-front   1/1     1            1           92m
+```
+
+Notice that there is currently only 1 replica running of the `store-front` service.
+
+<div class="task" data-title="Task">
+
+> Scale the number of replicas for the store-front service to 10
+
+```bash
+kubectl scale deployment store-front --replicas=10
+```
+
+You should see the following output.
+
+```bash
+deployment.apps/store-front scaled
+```
+
+Scaling to 10 replicas may take a moment. You can view the increased number of replicas by viewing the `store-front` deployment again.
+
+```bash
+kubectl get deployment store-front
+```
+
+If scaling the `store-front` deployment was successfully, you should now see `READY` and `AVAILABLE` number of replicas as 10.
+
+```bash
+NAME          READY   UP-TO-DATE   AVAILABLE   AGE
+store-front   10/10   10           10          103m
+```
+
+We will now return the number of replicas of the `store-front` service back to 1.
+
+```bash
+kubectl scale deployment store-front --replicas=1
+```
+
+### Automatically scaling your application
+
+To automatically scale your deployments, you can use the Horizontal Pod Autoscale (HPA) setting. This is a more preferred approach to scale you applicaiton, as it allows you to define a set of resource requests and limits, for CPU and memory, that your application can support safely to stay operational. Once an HPA configuraiton has been set for your deployment, Kubernetes will track application pod resource utilization and will scale your deployment automatically if the limits of your resource configuraiton has been met.
+
+Let's first take a look and view the current CPU and memory requests and limits for the `store-front` deployment.
+
+```bash
+kubectl describe deployment store-front
+```
+
+A description of the `store-front` deployment is returned. Under the Pod Template\Containers section, you should see the following limits and requests:
+
+```bash
+Limits:
+  cpu:     1
+  memory:  512Mi
+Requests:
+  cpu:      1m
+  memory:   200Mi
+```
+
+As a quick explanation of the `store-front` deployment requests and limits configuration, this configuration limits the `store-front` deployment up to 1 CPU core and 512Mi of memory, which is the equivalent of 1MB of memory. That is the hardware limit of resources allowed by each pod in the deployment. The request section specifies the minimum ammount of resources the container is gauranteed to have from the hardware resources available. In this case, each `store-front` pod is gauranteed to have 1m (millicore) of CPU, which is 0.001 CPU, and 200Mi, which is approximately 209MB.
+
+Let's first take a look and see if an HPA configuration exists for the `store-front` deployment.
+
+```bash
+kubectl get hpa store-front
+```
+
+If no HPA configuration exists, you will see an error similar to:
+
+```bash
+Error from server (NotFound): horizontalpodautoscalers.autoscaling "store-front" not found
+```
+
+Let's now create a HPA configuration for the `store-front` deployment.  
+
+We will create a HPA policy that will allow the HPA controller to increase or decrease the number of pods from 1 to 10, based on the pods keeping an average of 50% CPU utilization.
+
+```bash
+kubectl autoscale deployment store-front --cpu-percent=50 --min=1 --max=10
+```
+
+The output of the command
+
+```bash
+horizontalpodautoscaler.autoscaling/store-front autoscaled
+```
+
+We can then verify that an HPA policy exists for the `store-front` deployment.
+
+```bash
+kubectl get hpa store-front
+```
+
+You should see the following output:
+
+```
+NAME          REFERENCE                TARGETS    MINPODS   MAXPODS   REPLICAS   AGE
+store-front   Deployment/store-front   100%/50%   1         10        2          2m4s
+```
+
+In my example output, notice that the HPA autoscaler has already added an additional replica (instance) of the `store-front` deployment to meet the HPA configuration. 
+
+We will now deploy an application to simulate additional client load to the `store-front` deployment. In a seperate terminal, that has kubeclt access to your cluster, run the following command:
+
+```bash
+kubectl run -i --tty load-generator --rm --image=busybox:1.28 --restart=Never -- /bin/sh -c "while sleep 0.01; do wget -q -O- http://store-front; done"
+```
+
+After running the previous command, return back to your original terminal, where we will again look at the HPA policy for the `store-front` deployment to see if we have increased the need for replicas to meet the policy configuration.
+
+```bash
+kubectl get hpa store-front
+```
+
+You should see that the load generating application allowed the automatic scaling of the `store-front` deploymente to reach the maxium replica limit of 10.
+
+```bash
+NAME          READY   UP-TO-DATE   AVAILABLE   AGE
+store-front   10/10   10           10          4h13m
+```
+
+You can now terminate the load generating terminal, by either using ctrl+C, or closing the terminal window.
+
+You can also remove the HPA configuration for the `store-front` deployment by running the following command:
+
+```bash
+kubectl delete hpa store-front
+horizontalpodautoscaler.autoscaling "store-front" deleted
+```
+
+
+### Scaling your app
 
 As your app becomes more popular, you'll need to scale it to handle the increased load. In AKS, you can scale your app by increasing the number of replicas in your deployment. The Kubernetes Horizontal Pod Autoscaler (HPA) will automatically scale your app based on CPU and/or memory utilization. But not all workloads rely on these metrics for scaling. If say, you need to scale your workload based on the number of items in a queue, HPA will not be sufficient.
 
