@@ -38,7 +38,7 @@ The objectives of this workshop are to:
 
 ## Prerequisites
 
-All you need to complete this workshop is an Azure subscription with permissions to create resources. You will also need to ensure you have enough vCPU quota in the region you are deploying the AKS cluster to. If you don't have enough quota, you can request a quota increase. See [here](https://docs.microsoft.com/azure/azure-portal/supportability/per-vm-quota-requests) for more information.
+All you need to complete this workshop is an [Azure subscription](https://azure.microsoft.com/) with permissions to create resources and a [GitHub account](https://github.com/signup). You will also need to ensure you have enough vCPU quota in the region you are deploying the AKS cluster to. If you don't have enough quota, you can request a quota increase. See [here](https://docs.microsoft.com/azure/azure-portal/supportability/per-vm-quota-requests) for more information.
 
 ## Workshop instructions
 
@@ -1261,7 +1261,7 @@ az aks scale --resource-group myResourceGroup --name myAKSCluster --node-count 3
 
 ### Manually scaling your application
 
-In addition to you being able to manually scale the number of nodes in your cluster to add additional hardware resources, you can also manually scale your application workloads deployed in the cluster. In the scenario where your application is experiencing a lot of transactions, such as client interactions or internal API processing, you can manually scale the deployment to increase the number of replicas (instances) running to handle additional load. 
+In addition to you being able to manually scale the number of nodes in your cluster to add additional hardware resources, you can also manually scale your application workloads deployed in the cluster. In the scenario where your application is experiencing a lot of transactions, such as client interactions or internal API processing, you can manually scale the deployment to increase the number of replicas (instances) running to handle additional load.
 
 In the following example, we will view the current number of replicas running for the `store-front` service and then increase the number of replicas to 10.
 
@@ -1350,7 +1350,7 @@ If no HPA configuration exists, you will see an error similar to:
 Error from server (NotFound): horizontalpodautoscalers.autoscaling "store-front" not found
 ```
 
-Let's now create a HPA configuration for the `store-front` deployment.  
+Let's now create a HPA configuration for the `store-front` deployment.
 
 We will create a HPA policy that will allow the HPA controller to increase or decrease the number of pods from 1 to 10, based on the pods keeping an average of 50% CPU utilization.
 
@@ -1377,7 +1377,7 @@ NAME          REFERENCE                TARGETS    MINPODS   MAXPODS   REPLICAS  
 store-front   Deployment/store-front   100%/50%   1         10        2          2m4s
 ```
 
-In my example output, notice that the HPA autoscaler has already added an additional replica (instance) of the `store-front` deployment to meet the HPA configuration. 
+In my example output, notice that the HPA autoscaler has already added an additional replica (instance) of the `store-front` deployment to meet the HPA configuration.
 
 We will now deploy an application to simulate additional client load to the `store-front` deployment. In a seperate terminal, that has kubeclt access to your cluster, run the following command:
 
@@ -1517,9 +1517,96 @@ Simply copy the dashboard ID, paste it into the **Grafana.com dashboard URL or I
 
 ---
 
-# CI/CD and Automated Deployments
+# CI/CD with Automated Deployments
 
-## Use AKS Automated Deployments with a single service to setup CI/CD
+Up until this point, you've been using either kubectl or the Azure portal to deploy applications to your AKS cluster and/or edit configurations. This is fine for manual deployments, but in a production environment, you would want to automate the deployment process. This is where Continuous Integration and Continuous Deployment (CI/CD) pipelines come in. With CI/CD pipelines, you can automate the process of building, testing, and deploying your applications to your AKS cluster.
+
+With AKS, the [Automated Deployments](https://learn.microsoft.com/azure/aks/automated-deployments) feature allows you to create [GitHub Actions workflows](https://docs.github.com/actions) that allows you to start deploying your applications to your AKS cluster with minimal effort. All you need is a GitHub repository with your application code. If you have Dockerfiles or Kubernetes manifests in your repository, that's great, you can simply point to them in the Automated Deployments setup. But the best part is that you don't even need to have Dockerfiles or Kubernetes manifests in your repository. Automated Deployments can create them for you.
+
+## Fork a sample repository
+
+In this section, you will fork a sample repository that contains a simple Node.js application.
+
+In your browser, navigate to the [contoso-air](https://github.com/pauldotyu/contoso-air) repo and click the **Fork** button in the top right corner of the page.
+
+![GitHub fork button](./assets/github-fork.png)
+
+<div class="info" data-title="Note">
+
+> Make sure you are logged into your GitHub account before forking the repository.
+
+</div>
+
+## Automated Deployments setup
+
+In the Azure portal, navigate to the AKS cluster you created earlier. In the left-hand menu, click on **Automated Deployments** under the **Settings** section. Click on the **+ Create** button, then click **Automatically containerize and deploy** button.
+
+![Azure portal Automated Deployments](./assets/azure-portal-automated-deployments.png)
+
+In the **Repository** tab, fill in the following details:
+
+- **Workflow name**: Enter `contoso-air`
+- **Repository location**: Authenticate to your GitHub account
+- **Repository source**: Select the **My repositories** radio button
+- **Repository**: Select the **contoso-air** repository you forked earlier
+- **Branch**: Select the **main** branch
+
+Click **Next: Image**.
+
+In the **Image** tab, fill in the following details:
+
+**Dockerfile configuration**:
+
+- **Application environment**: Select **JavaScript - Node.js 20**
+- **Application port**: Enter **3000**
+- **Dockerfile build context**: Enter `./src/frontend`
+
+**Registry details**:
+
+- **Azure Container Registry**: Select the Azure Container Registry you created earlier
+- **Azure Container Registry image**: Enter `contoso-air`
+
+Click **Next: Deployment details**.
+
+In the **Deployment details** tab, fill in the following details:
+
+- **Namespace**: Select `default`
+
+Click **Next: Review** then click **Next: Deploy**.
+
+After a minute or so, the deployment will complete and you will see a success message. Click on the **Approve pull request** button to approve the pull request that was created by the Automated Deployments workflow.
+
+![Azure portal Automated Deployments success](./assets/azure-portal-automated-deployments-success.png)
+
+## Review the pull request
+
+You will be taken to the pull request page in your GitHub repository. Click on the **Files changed** tab to view the changes that were made by the Automated Deployments workflow.
+
+Navigate back to the **Conversation** tab and click on the **Merge pull request** button to merge the pull request, then click **Confirm merge**.
+
+![GitHub merge pull request](./assets/github-merge-pull-request.png)
+
+With the pull request merged, the changes will be automatically deployed to your AKS cluster. You can view the deployment logs by clicking on the **Actions** tab in your GitHub repository.
+
+![GitHub Actions tab](./assets/github-actions-tab.png)
+
+In the **Actions** tab, you will see the Automated Deployments workflow running. Click on the workflow run to view the logs.
+
+![GitHub Actions workflow run](./assets/github-actions-workflow-run.png)
+
+In the workflow run details page, you can view the logs of each step in the workflow by simply clicking on the step.
+
+![GitHub Actions workflow logs](./assets/github-actions-workflow-logs.png)
+
+After a few minutes, the workflow will complete and you will see two green checkmarks next to the **buildImage** and **deploy** steps. This means that the application has been successfully deployed to your AKS cluster.
+
+## View the deployed application
+
+In the Azure portal, navigate to the AKS cluster you created earlier. In the left-hand menu, click on **Services and ingresses** under the **Kubernetes resources** section. You should see a new service called `contoso-air` with a public IP address assigned to it. Click on the IP address to view the deployed application.
+
+![Azure portal AKS services](./assets/azure-portal-aks-services-contoso-air.png)
+
+With this setup, every time you push application code changes to your GitHub repository, the GitHub Action workflow will automatically build and deploy your application to your AKS cluster.
 
 ---
 
