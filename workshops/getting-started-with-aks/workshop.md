@@ -1407,6 +1407,105 @@ kubectl delete hpa store-front
 horizontalpodautoscaler.autoscaling "store-front" deleted
 ```
 
+### Automatically scaling your cluster
+
+So far as it relates to scaling, we have seen how to manually scale the cluster nodes, to allow more access to hardware resourses for running workloads, manually scaling your workload deployments to increase the number of instances of your application, and we have also seen how you can create an HPA autocaler for your application workload deployement that will automatically scale your application depending on the amount of resources it utilizes.
+
+One thing to note, even though an HPA policy will automate the scaling of your applicaiton deployment, based on resource utilization, your application can still be affected if your cluster resources are exhausted. At that point, you will need to manually scale the number of nodes in the cluster to meet applicaiton demand.
+
+There is a more preferred approach and method for scaling your cluster that takes into account both the resource needs of your application and the cluster nodes utilization known as the Node Autoprovisioning (NAP) component. NAP is based on the Open Source [Karpenter](https://karpenter.sh/) project, and the [AKS provider](https://github.com/Azure/karpenter-provider-azure), which is also Open Source. NAP will automatically scale your cluster node pool to meet the demands of your applicaiton workloads, not only with additional nodes, but will find the most efficient VM configuration to host the demands of your workloads.
+
+To show how Node Autoprovisioning work, we will first scale down the nodepool to have a single node.
+
+First we will check to see if NAP is configured for the cluster. Run the following command in the terminal.
+
+```bash
+az aks show -g <resource-group> -n <aks-cluster-name> --query "nodeProvisioningProfile"
+```
+
+Next we will scale down the node pool to one (1) node.
+
+```bash
+az aks scale -g <resource-group> -n <aks-cluster-name> --node-count 1 --nodepool-name <node-pool-name>
+```
+
+You should see the job start.
+
+```bash
+ / Running ..
+```
+
+Once complete you will see the full output of your cluster configuraiton in the terminal. The key property to view is the `agentPoolProfiles` count property.
+
+```bash
+az aks show -g <resource-group> -n <aks-cluster-name> --query "agentPoolProfiles[].count"
+```
+
+You should see a `1` as the output, meaning there is only one node in the current node pool of the cluster
+
+```bash
+[
+  1
+]
+```
+
+To activate NAP, we will manually scale the `store-front` deployment to have 500 instances. This should start to exaust the currently single node and trigger NAP to auto provision addional nodes in the node pool to support the resource demand.
+
+In a seperate terminal, let's setup a watch to monitor the number of nodes.
+
+```bash
+watch kubectl get nodes
+```
+
+In the watch terminal you should see the following:
+
+```bash
+Every 2.0s: kubectl get nodes                                                                                                                                      
+
+NAME                                 STATUS   ROLES    AGE   VERSION
+aks-systempool-38000477-vmss000000   Ready    <none>   27h   v1.29.8
+```
+
+On the original terminal, we'll now manually scale the `store-front` deployment to 500 replicas (instances).
+
+```bash
+kubectl scale deployment store-front --replicas=500
+deployment.apps/store-front scaled
+```
+
+If we take a look at the watch terminal for the nodes, we will should see additional nodes being created automatically to handle the application resource demands.
+
+```bash
+Every 2.0s: kubectl get nodes                                                                                                                                      
+
+NAME                                 STATUS   ROLES    AGE     VERSION
+aks-default-27xf5                    Ready    <none>   52m     v1.29.8
+aks-default-2wpdf                    Ready    <none>   44s     v1.29.8
+aks-default-7rmsm                    Ready    <none>   47s     v1.29.8
+aks-default-9lrwf                    Ready    <none>   51s     v1.29.8
+aks-default-dg299                    Ready    <none>   50s     v1.29.8
+aks-default-k4lf7                    Ready    <none>   2m10s   v1.29.8
+aks-default-sfq57                    Ready    <none>   53s     v1.29.8
+aks-systempool-38000477-vmss000000   Ready    <none>   27h     v1.29.8
+```
+
+Once we have verified that NAP automatically scaled the node pool based on the applicaiton workload demand, we can now scale the `store-front` applicaiton back to a single instance.
+
+```bash
+kubectl scale deployment store-front --replicas=1
+deployment.apps/store-front scaled
+```
+
+In a few moments, on the watch terminal for the nodes, you should start to see the number of nodes decrease as the application workload demand lessens for the cluster.
+
+```bash
+Every 2.0s: kubectl get nodes                                                                                                                                      
+
+NAME                                 STATUS   ROLES    AGE     VERSION
+aks-default-7rmsm                    Ready    <none>   5m22s   v1.29.8
+aks-systempool-38000477-vmss000000   Ready    <none>   27h     v1.29.8
+```
+
 ---
 
 # Observability
