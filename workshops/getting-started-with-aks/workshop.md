@@ -1,9 +1,9 @@
 ---
-published: false # Optional. Set to true to publish the workshop (default: false)
+published: true # Optional. Set to true to publish the workshop (default: false)
 type: workshop # Required.
-title: Getting Started with Azure Kubernetes Service (AKS) # Required. Full title of the workshop
-short_title: Getting Started with AKS # Optional. Short title displayed in the header
-description: This is a workshop for getting started AKS # Required.
+title: Getting Started with Azure Kubernetes Service (AKS) Automatic # Required. Full title of the workshop
+short_title: Getting Started with AKS Automatic # Optional. Short title displayed in the header
+description: This is a workshop for getting started with AKS Automatic # Required.
 level: beginner # Required. Can be 'beginner', 'intermediate' or 'advanced'
 authors: # Required. You can add as many authors as needed
   - "Paul Yu"
@@ -24,11 +24,12 @@ wt_id: WT.mc_id=containers-147656-pauyu
 
 # Overview
 
+This workshop will guide you up to speed with working with Azure Kubernetes Service (AKS) Automatic. AKS Automatic is a new way to deploy and manage Kubernetes clusters on Azure. It is a fully managed Kubernetes service that simplifies the deployment, management, and operations of Kubernetes clusters. With AKS Automatic, you can deploy a Kubernetes cluster with just a few clicks in the Azure Portal. AKS Automatic is designed to be simple and easy to use, so you can focus on building and running your applications.
+
 ## Objectives
 
-The objectives of this workshop are to:
+After completing this workshop, you will be able to:
 
-- Get familiar with AKS Presets in the Azure Portal
 - Deploy an AKS Automatic cluster
 - Connect to the AKS cluster and deploy applications
 - Implement resiliency in your application using Kubernetes Deployments
