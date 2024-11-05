@@ -81,6 +81,16 @@ resource keyVaultSecretUserRoleAssignment 'Microsoft.Authorization/roleAssignmen
   }
 }
 
+resource keyVaultCertificateUserRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(subscription().id, resourceGroup().id, managedIdentity.id, 'Key Vault Certificate User')
+  scope: azureKeyVault
+  properties: {
+    principalId: managedIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: resourceId('Microsoft.Authorization/roleDefinitions', 'db79e9a7-68ee-4b58-9aeb-b90e7c24fcba')
+  }
+}
+
 resource keyVaultAdministratorRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(subscription().id, resourceGroup().id, userObjectId, 'Key Vault Administrator')
   scope: azureKeyVault
