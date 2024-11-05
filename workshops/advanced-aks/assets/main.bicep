@@ -100,3 +100,14 @@ resource keyVaultAdministratorRoleAssignment 'Microsoft.Authorization/roleAssign
     roleDefinitionId: resourceId('Microsoft.Authorization/roleDefinitions', '00482a5a-887f-4fb3-b363-3b7fe8e74483')
   }
 }
+
+resource containerRegistry 'Microsoft.ContainerRegistry/registries@2023-11-01-preview' = {
+  name: 'myregistry${uniqueString(subscription().id, resourceGroup().id, deployment().name)}'
+  location: resourceGroup().location
+  sku: {
+    name: 'Standard'
+  }
+  identity: {
+    type: 'SystemAssigned'
+  }
+}
