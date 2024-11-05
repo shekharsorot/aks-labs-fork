@@ -103,7 +103,7 @@ resource keyVaultAdministratorRoleAssignment 'Microsoft.Authorization/roleAssign
 
 resource containerRegistry 'Microsoft.ContainerRegistry/registries@2023-11-01-preview' = {
   name: 'myregistry${uniqueString(subscription().id, resourceGroup().id, deployment().name)}'
-  location: resourceGroup().location
+  location: location
   sku: {
     name: 'Standard'
   }
