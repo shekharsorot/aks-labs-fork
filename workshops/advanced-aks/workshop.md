@@ -1254,7 +1254,7 @@ pod "mysql-client" deleted
 #### Initiate the node failover
 
 Perform the following steps:
-* Capture the number of nodes in the default node pool "nodepool1",
+* Capture the number of nodes in the default node pool set in the variable `$ACSTOR_NODEPOOL_NAME`,
 * Scale up the node pool to add one more node,
 * Capture the node on which the workload is running,
 * Delete the node on which the workload is running.
@@ -1282,7 +1282,7 @@ kubectl get pods -l app=mysql -o wide --watch
 Output should resemble like:
 ```
 NAME      READY   STATUS    RESTARTS   AGE   IP             NODE                                NOMINATED NODE   READINESS GATES
-mysql-0   2/2     Running   0          3m34s  10.244.3.16   aks-nodepool1-28567125-vmss000002   <none>           <none>
+mysql-0   2/2     Running   0          3m25s  10.244.3.16   aks-nodepool1-28567125-vmss000002   <none>           <none>
 ```
 
 NOTE: Compare the `NODE` entry with the value obtained in **Checkpoint 2** and verify that they are different.
@@ -1323,7 +1323,7 @@ Output:
 pod "mysql-client" deleted
 ```
 
-The output obtained contains the values entered before the failover and observed in **Checkpoint 3**.This shows that the database and table entries in the MySQL Server was replicated and persisted across the failover of `mysql-0` pod.
+The output obtained contains the values entered before the failover and observed in **Checkpoint 3**.This shows that the database and table entries in the MySQL Server were replicated and persisted across the failover of `mysql-0` pod.
 The output also demonstrates that, newer entries were successfully appended on the newly spawned mysql server application. 
 
 #### Summary
