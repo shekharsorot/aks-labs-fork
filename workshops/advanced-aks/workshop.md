@@ -1,8 +1,8 @@
 ---
 published: true # Optional. Set to true to publish the workshop (default: false)
 type: workshop # Required.
-title: Advanced AKS and Day 2 Operations # Required. Full title of the workshop
-short_title: Advanced AKS and Day 2 Operations # Optional. Short title displayed in the header
+title: AKS Deep Dives # Required. Full title of the workshop
+short_title: AKS Deep Dives # Optional. Short title displayed in the header
 description: This is a workshop for advanced AKS scenarios and day 2 operations # Required.
 level: intermediate # Required. Can be 'beginner', 'intermediate' or 'advanced'
 authors: # Required. You can add as many authors as needed
@@ -42,36 +42,44 @@ After completing this workshop, you will be able to:
 
 ## Prerequisites
 
-To complete this workshop, you will need:
+Before you begin, you will need an [Azure subscription](https://azure.microsoft.com/) with permissions to create resources.
 
-- An [Azure subscription](https://azure.microsoft.com/) and permissions to create resources. The subscription should also have at least 32 vCPU of Standard D series quota available to create multiple AKS clusters throughout this lab. If you don't have enough quota, you can request an increase. Check [here](https://docs.microsoft.com/azure/azure-portal/supportability/per-vm-quota-requests) for more information.
-- A [GitHub account](https://github.com/signup)
-- Azure CLI. You can install it from [here](https://docs.microsoft.com/cli/azure/install-azure-cli). You may also want to install the aks-preview extension. You can find out how to do that [here](https://learn.microsoft.com/azure/aks/draft#install-the-aks-preview-azure-cli-extension)
-- kubectl - You can see how to install kubectl [here](https://kubernetes.io/docs/tasks/tools/install-kubectl/)
-- POSIX compliant shell (e.g. bash, zsh, or [Azure Cloud Shell](https://learn.microsoft.com/azure/cloud-shell/overview))
+<div class="info" data-title="Note">
 
----
+> The subscription should also have at least 32 vCPU of Standard D series quota available to create multiple AKS clusters and accommodate node surges on cluster upgrades. If you don't have enough quota, you can request an increase. Check [here](https://docs.microsoft.com/azure/azure-portal/supportability/per-vm-quota-requests) for more information.
 
-## Lab environment setup
+### Tools
 
-This workshop will require the use of multiple Azure resources. To make it easier to manage these resources, you will create a resource group to contain all the resources and pre-deploy some monitoring resources; all of which will be deployed using Azure CLI in a POSIX compliant shell.
+Most of the workshop will be done using command line tools, so you will need to have the following tools installed:
 
-Run the following command to create a **.env** file with local variables used throughout the workshop.
+- [Azure CLI](https://learn.microsoft.com/cli/azure/what-is-azure-cli)
+- [kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/)
+- [Hubble CLI](https://docs.cilium.io/en/stable/observability/hubble/setup/)
+- [Git](https://git-scm.com/)
+- Bash shell (e.g. [Windows Terminal](https://www.microsoft.com/p/windows-terminal/9n0dx20hk701) with [WSL](https://docs.microsoft.com/windows/wsl/install-win10) or [Azure Cloud Shell](https://shell.azure.com))
+
+If you are unable to install these tools on your local machine, you can use the Azure Cloud Shell, which has most of the tools pre-installed.
+
+[Visual Studio Code](https://code.visualstudio.com/)
+
+### Lab Resource Setup
+
+This workshop will require the use of multiple Azure resources such as [Azure Log Analytics](https://learn.microsoft.com/azure/azure-monitor/logs/log-analytics-overview), [Azure Managed Prometheus](https://learn.microsoft.com/azure/azure-monitor/essentials/prometheus-metrics-overview), [Azure Managed Grafana](https://learn.microsoft.com/azure/managed-grafana/overview), [Azure Key Vault](https://learn.microsoft.com/azure/key-vault/general/overview), and [Azure Container Registry](https://learn.microsoft.com/azure/container-registry/container-registry-intro). The resource deployment can take some time, so to expedite the process, we will use a Bicep template to deploy the resources.
+
+Using the terminal of your choice, run the following commands to set up the workshop **.env** file which will be used to store the environment variables throughout the workshop.
+
+Set the environment variables for the resource group name and location.
 
 ```bash
 cat <<EOF > .env
 RG_NAME="myResourceGroup${RANDOM}"
-AKS_NAME="myAKSCluster${RANDOM}"
-ACR_NAME="myACR${RANDOM}"
-REGISTRY=${ACR_NAME}.azurecr.io
-AKV_NAME="myKeyVault${RANDOM}"
 LOCATION="eastus"
 EOF
 ```
 
-<div class="info" data-title="Note">
+<div class="important" data-title="Important">
 
-> Choose a region that has supports availability zones. You can find a list of regions that support availability zones [here](https://learn.microsoft.com/azure/aks/availability-zones-overview) and has enough vCPU quota to create multiple AKS clusters.
+> You must ensure the region you choose to deploy to supports [availability zones](https://learn.microsoft.com/azure/aks/availability-zones-overview) to demonstrate some of the concepts in this workshop.
 
 </div>
 
@@ -83,14 +91,14 @@ source .env
 
 <div class="tip" data-title="Tip">
 
-> If you are using the Azure Cloud Shell, it may time out and you will loose your environment variables. Therefore, you will use the **.env** file to store your environment variables as you progress through the workshop to make it easier to reload them.
+> If you are using the Azure Cloud Shell, you may encounter shell a time out loose environment variables. Therefore, writing your variables to an **.env** file will make it easier to reload them.
 
 </div>
 
-Make sure you are logged into your Azure account by running the following command.
+Run the following command and follow the prompts to log in to your Azure account using the Azure CLI.
 
 ```bash
-az login
+az login --use-device-code
 ```
 
 Run the following command to create a resource group.
@@ -101,61 +109,75 @@ az group create \
 --location ${LOCATION}
 ```
 
-Run the following command to download the Bicep template file.
+Run the following command to download the Bicep template file to deploy the lab resources.
 
 ```bash
-wget https://raw.githubusercontent.com/Azure-Samples/aks-labs/refs/heads/advanced-aks-cleanup/workshops/advanced-aks/assets/main.bicep
+curl -o main.bicep https://raw.githubusercontent.com/Azure-Samples/aks-labs/refs/heads/advanced-aks/workshops/advanced-aks/assets/main.bicep
 ```
 
-Run the following command to create an Azure Log Analytics workspace, Azure Managed Prometheus, and Azure Managed Grafana resources. You will need these resources at various points in the workshop.
+Run the following command to save the user object ID to a variable.
+
+```bash
+cat <<EOF >> .env
+USER_ID="$(az ad signed-in-user show --query id -o tsv)"
+EOF
+source .env
+```
+
+Run the following command to deploy the resources into the resource group.
 
 ```bash
 az deployment group create \
 --resource-group $RG_NAME \
 --template-file main.bicep \
---parameters userObjectId=$(az ad signed-in-user show --query id -o tsv) \
+--parameters userObjectId=${USER_ID} \
 --no-wait
 ```
 
-## Cluster Setup
+This deployment will take a few minutes to complete. You can move on to the next section while the resources are being deployed.
 
-In this section, you will create an AKS cluster implementing some of the best practices for production clusters. The AKS cluster will be created with multiple node pools and availability zones. The AKS cluster will also be created with monitoring and logging services enabled.
+---
 
-### Cluster Sizing
+## AKS Deployment Strategies
 
-When creating an AKS cluster, it's essential to consider its size based on your workload requirements. The number of nodes needed depends on the number of pods you plan to run, while node configuration is determined by the amount of CPU and memory required for each pod.
+In this section, you will explore cluster setup considerations such as cluster sizing and topology, system and user node pools, and availability zones. You will create an AKS cluster implementing some of the best practices for production clusters. Not all best practices will be covered in this workshop, but you will have a good foundation to build upon.
+
+### Size Considerations
+
+Before you deploy an AKS cluster, it's essential to consider its size based on your workload requirements. The number of nodes needed depends on the number of pods you plan to run, while node configuration is determined by the amount of CPU and memory required for each pod. As you know more about your workload requirements, you can adjust the number of nodes and the size of the nodes.
+
+When it comes to considering the size of the node, it is important to understand the types of Virtual Machines (VMs) available in Azure; their characteristics, such as CPU, memory, and disk, and ultimate the SKU that best fits your workload requirements. See the [Azure VM sizes](https://learn.microsoft.com/azure/virtual-machines/sizes/overview) documentation for more information.
 
 ### System and User Node Pools
 
 When an AKS cluster is created, a single node pool is created. The single node pool will run Kubernetes system components required to run the Kubernetes control plane. It is recommended to create a separate node pool for user workloads. This separation allows you to manage system and user workloads independently.
 
-System node pools serve the primary purpose of hosting pods implementing the Kubernetes control plane (such as `coredns` and `metrics-server`). User node pools are additional node pools that can be created to host user workloads. User node pools can be created with different configurations than the system node pool, such as different VM sizes, node counts, and availability zones and are added after the cluster is created.
+System node pools serve the primary purpose of hosting pods implementing the Kubernetes control plane, such as **kube-apiserver**, **coredns**, and **metrics-server** just to name a few. User node pools are additional pools of compute that can be created to host user workloads. User node pools can be created with different configurations than the system node pool, such as different VM sizes, node counts, and availability zones and are added after the cluster is created.
 
-When creating an AKS cluster, you can specify the number of nodes and the size of the nodes. The number of nodes is determined by the `--node-count` parameter. The size of the nodes is determined by the `--node-vm-size` parameter.
+### Resilience with Availability Zones
 
-### Availability Zones
-
-When creating an AKS cluster, you can specify the number of availability zones. When you create an AKS cluster with multiple availability zones, the control plane is spread across the availability zones. This provides high availability for the control plane. The `--zones` parameter is a space separated list of availability zones. For example, `--zones 1 2 3` creates an AKS cluster with three availability zones.
+When creating an AKS cluster, you can specify the use of [availability zones](https://learn.microsoft.com/azure/aks/availability-zones) which will distribute control plane zones within a region. You can think of availability zones as separate data centers within a large geographic region. By distributing the control plane across availability zones, you can ensure high availability for the control plane. In an Azure region, there are typically three availability zones, each with its own power source, network, and cooling.
 
 ### Creating an AKS Cluster
 
 Now that we have covered the basics of cluster sizing and topology, let's create an AKS cluster with multiple node pools and availability zones.
 
-<div class="info" data-title="Note">
-
-> In this workshop you will be creating an AKS cluster that can be accessible from the public internet. For production use, it is recommended to create a private cluster. You can find more information on creating a private cluster [here](https://docs.microsoft.com/azure/aks/private-clusters).
-
-</div>
-
-Azure CLI is the primary tool used throughout this workshop. If you are using the Azure Cloud Shell, the Azure CLI is already installed. If you are using a local machine, you will need to install the Azure CLI. You can find more information on how to install the Azure CLI [here](https://docs.microsoft.com/cli/azure/install-azure-cli). You will also need to install the aks-preview extension since some of the features used in this workshop are in preview. You can find more information on how to install Azure CLI extensions [here](https://learn.microsoft.com/cli/azure/extension?view=azure-cli-latest#az-extension-add).
-
-Run the following command to install the aks-preview extension.
+Before you create the AKS cluster, run the following command to install the aks-preview extension. This extension will allow you to work with the latest features in AKS some of which will be in preview.
 
 ```bash
 az extension add --name aks-preview
 ```
 
-While the command to create the monitoring resources is running, run the following the [az aks create](<https://learn.microsoft.com/cli/azure/aks?view=azure-cli-latest#az-aks-create(aks-preview)>) command to create an AKS cluster.
+Run the following command to set a name for the AKS cluster, store it in the **.env** file and load the environment variables.
+
+```bash
+cat <<EOF >> .env
+AKS_NAME="myAKSCluster${RANDOM}"
+EOF
+source .env
+```
+
+Run the following command to create an AKS cluster.
 
 ```bash
 az aks create \
@@ -164,6 +186,7 @@ az aks create \
 --location ${LOCATION} \
 --tier standard \
 --kubernetes-version 1.29 \
+--os-sku AzureLinux \
 --nodepool-name systempool \
 --node-count 3 \
 --zones 1 2 3 \
@@ -173,22 +196,23 @@ az aks create \
 --network-dataplane cilium \
 --network-policy cilium \
 --ssh-access disabled \
---enable-managed-identity
+--enable-managed-identity \
+--enable-acns
 ```
 
 The command above will deploy an AKS cluster with the following configurations:
 
 - Deploy Kubernetes version 1.29. This is not the latest version of Kubernetes, and is intentionally set to an older version to demonstrate cluster upgrades later in the workshop.
-- Create a "system" node pool with 3 nodes in availability zones 1, 2, and 3. This node pool will be used to host system workloads and to ensure datacenter resiliency, the nodes will be spread across availability zones. The VM SKU may need to be adjusted based on your subscription quota.
-- Use Azure CNI Overlay Powered By Cilium networking. This will give you the most advanced networking features available in AKS and gives great flexibility in how IP addresses are assigned to pods.
-- Use a standard load balancer to support traffic across availability zones.
-- The following features are enabled as they are best practice for production clusters:
-  - Disable SSH access to the nodes
-  - Enable a managed identity
+- Create a system node pool with 3 nodes spread across availability zones 1, 2, and 3. This node pool will be used to host Kubernetes control plane and AKS-specific components.
+- Use standard load balancer to support traffic across availability zones.
+- Use Azure CNI Overlay Powered By Cilium networking. This will give you the most advanced networking features available in AKS and gives great flexibility in how IP addresses are assigned to pods. Note the Advanced Container Networking Services (ACNS) feature is enabled and will be covered later in the workshop.
+- Some best practice for production clusters:
+  - Disable SSH access to the nodes to prevent unauthorized access
+  - Enable a managed identity for passwordless authentication to Azure services
 
-<div class="info" data-title="Note">
+<div class="important" data-title="Important">
 
-> A few other best practice features will be enabled later in the workshop.
+> Not all best practices are implemented in this workshop. For example, you will be creating an AKS cluster that can be accessible from the public internet. For production use, it is recommended to create a private cluster. You can find more information on creating a private cluster [here](https://docs.microsoft.com/azure/aks/private-clusters). Don't worry though, more best practices will be implemented as we progress through the workshop 😎
 
 </div>
 
@@ -202,7 +226,7 @@ az aks get-credentials \
 
 ### Adding a User Node Pool
 
-The AKS cluster has been created with a system node pool that is used to host system workloads. It is best to create a user node pool to host user workloads. User node pools can be created with different configurations than the system node pool, such as different VM sizes, node counts, and availability zones.
+As mentioned above, the AKS cluster has been created with a system node pool that is used to host system workloads. You will need to manually create a user node pool to host user workloads. This user node pool will be created with a single node but can be scaled up as needed. Also note that the VM SKU is specified here which can be changed to suit your workload requirements.
 
 Run the following command to add a user node pool to the AKS cluster.
 
@@ -213,13 +237,15 @@ az aks nodepool add \
 --mode User \
 --name userpool \
 --node-count 1 \
---node-vm-size Standard_D4s_v5 \
+--node-vm-size Standard_DS2_v2 \
 --zones 1 2 3
 ```
 
 ### Tainting the System Node Pool
 
-Now that we have created a user node pool, we need to add a taint to the system node pool to ensure that the user workloads are not scheduled on the system node pool. Run the following command to add a taint to the system node pool.
+Now that we have created a user node pool, we need to add a taint to the system node pool to ensure that the user workloads are not scheduled on it. A taint is a key-value pair that prevents pods from being scheduled on a node unless the node has the corresponding toleration. You could taint nodes using the [kubectl taint](https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#taint) command, but since AKS can scale node pools up and down, it is recommended to use the [--node-taints](https://learn.microsoft.com/azure/aks/use-node-taints) option from the Azure CLI to ensure the taint is applied to all nodes in the pool.
+
+Run the following command to add a taint to the system node pool.
 
 ```bash
 az aks nodepool update \
@@ -229,9 +255,13 @@ az aks nodepool update \
 --node-taints CriticalAddonsOnly=true:NoSchedule
 ```
 
+This taint will prevent pods from being scheduled on the node pool unless they have a toleration for the taint. More on taints and tolerations can be found [here](https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/).
+
 ### Enabling AKS Monitoring and Logging
 
-The deployment of the monitoring resources should have completed by now. All you need to do next is enable [metrics monitoring](https://learn.microsoft.com/azure/azure-monitor/containers/kubernetes-monitoring-enable?tabs=cli) and [container insights logging](https://learn.microsoft.com/azure/azure-monitor/containers/kubernetes-monitoring-enable?tabs=cli#enable-container-insights) on the cluster.
+Monitoring and logging are essential for maintaining the health and performance of your AKS cluster. AKS provides integrations with Azure Monitor for metrics and logs. Logging is provided by [container insights](https://learn.microsoft.com/azure/azure-monitor/containers/kubernetes-monitoring-enable?tabs=cli#enable-container-insights) which can send container logs to [Azure Log Analytics Workspaces](https://learn.microsoft.com/azure/azure-monitor/logs/log-analytics-overview) for analysis. Metrics are provided by [Azure Monitor managed service for Prometheus](https://learn.microsoft.com/azure/azure-monitor/essentials/prometheus-metrics-overview) which collects performance metrics from nodes and pods and allows you to query using [PromQL](https://prometheus.io/docs/prometheus/latest/querying/basics/) and visualize using [Azure Managed Grafana](https://learn.microsoft.com/azure/managed-grafana/overview).
+
+The Bicep template that was deployed earlier should be completed by now. All you need to do next is enable [metrics monitoring](https://learn.microsoft.com/azure/azure-monitor/containers/kubernetes-monitoring-enable?tabs=cli) and on the cluster by linking the monitoring resources to the AKS cluster.
 
 Run the following commands to get the resource group name for the monitoring resources and reload the environment variables.
 
@@ -246,11 +276,11 @@ source .env
 
 <div class="tip" data-title="Tip">
 
-> Whenever you want to see the contents of the **.env **file, run the `cat .env` command.
+> Whenever you want to see the contents of the **.env** file, run the `cat .env` command.
 
 </div>
 
-Run the following command to enable monitoring.
+Run the following command to enable metrics monitoring.
 
 ```bash
 az aks update \
@@ -262,7 +292,7 @@ az aks update \
 --no-wait
 ```
 
-Run the following command to logging.
+Run the following command to enable container logging.
 
 ```bash
 az aks enable-addons \
@@ -273,24 +303,54 @@ az aks enable-addons \
 --no-wait
 ```
 
+More on full stack monitoring on AKS can be found [here](https://learn.microsoft.com/azure/azure-monitor/containers/monitor-kubernetes)
+
 ### Deploying the AKS Store Demo Application
 
-Install the [AKS Store Demo](https://github.com/Azure-Samples/aks-store-demo) application in the `pets` namespace using the following commands.
+This workshop will have you implement features and test scenarios on the AKS cluster. To do this, you will need an application to work with. The [AKS Store Demo application](https://github.com/Azure-Samples/aks-store-demo) is a simple e-commerce application that will be used to demonstrate the advanced features of AKS.
+
+The application has the following services:
+
+| Service         | Description                                                        |
+| --------------- | ------------------------------------------------------------------ |
+| store-front     | Web app for customers to place orders (Vue.js)                     |
+| order-service   | This service is used for placing orders (Javascript)               |
+| product-service | This service is used to perform CRUD operations on products (Rust) |
+| rabbitmq        | RabbitMQ for an order queue                                        |
+
+Run the following command to create a namespace for the application.
 
 ```bash
 kubectl create namespace pets
+```
+
+Run the following command to install the application in the **pets** namespace using the following commands.
+
+```bash
 kubectl apply -f https://raw.githubusercontent.com/Azure-Samples/aks-store-demo/refs/heads/main/aks-store-quickstart.yaml -n pets
 ```
 
-You can verify the AKS Store Demo application was installed with the following command:
+Verify the application was installed with the following command.
 
 ```bash
 kubectl get all -n pets
 ```
 
-<div class="info" data-title="Info">
+The application uses a LoadBalancer service to allow access to the application UI. Once you have confirmed all the pods are deployed, run the following command to get the storefront service IP address.
 
-> Congratulations! You have now created an AKS cluster with system and user node pools. At this point, you can jump any section within this workshop and focus on the topics that interest you the most.
+```bash
+kubectl get svc store-front -n pets
+```
+
+Copy the **EXTERNAL-IP** of the **store-front** service to your browser to access the application.
+
+![Alt Text](assets/ACNS-Pets_App.png)
+
+<div class="tip" data-title="Congratulations!">
+
+> You have now created an AKS cluster with some best practices in place such as multiple node pools, availability zones, and monitoring. You have also deployed an application to work with in the upcoming sections.
+>
+> At this point, you can jump any section within this workshop and focus on the topics that interest you the most.
 >
 > Feel free to click **Next** at the bottom of the page to continue with the workshop or jump to any of the sections in the left-hand navigation.
 
@@ -301,56 +361,19 @@ kubectl get all -n pets
 ## Advanced Networking Concepts
 
 ### Advanced Container Networking Services
+
 Advanced Container Networking Services (ACNS) is a suite of services built to significantly enhance the operational capabilities of your Azure Kubernetes Service (AKS) clusters.
 Advanced Container Networking Services contains features split into two pillars:
 
-- Security: For clusters using Azure CNI Powered by Cilium, network policies include fully qualified domain name (FQDN) filtering for tackling the complexities of maintaining configuration.
-- Observability: The inaugural feature of the Advanced Container Networking Services suite bringing the power of Hubble’s control plane to both Cilium and non-Cilium Linux data planes. These features aim to provide visibility into networking and performance.
+- **Security**: For clusters using Azure CNI Powered by Cilium, network policies include fully qualified domain name (FQDN) filtering for tackling the complexities of maintaining configuration.
+- **Observability**: The inaugural feature of the Advanced Container Networking Services suite bringing the power of Hubble’s control plane to both Cilium and non-Cilium Linux data planes. These features aim to provide visibility into networking and performance.
 
-## Setting Up the Demo Application
+### Enforcing Network Policy
 
-In this section, we’ll deploy a sample application to demonstrate ACNS in action
+In this section, we’ll apply network policies to control traffic flow to and from the Pet Shop application. We will start with standard network policy that doesn't require ACNS, then we enforce more advanced FQDN policies.
 
-The application has the following service 
+#### Test Connectivity
 
-| Service | Description |
-| --- | --- |
-| `store-front` | Web app for customers to place orders (Vue.js) |
-| `order-service` | This service is used for placing orders (Javascript) |
-| `product-service` | This service is used to perform CRUD operations on products (Rust) |
-| `rabbitmq` | RabbitMQ for an order queue |
-
-1. **Deploy the Pet Shop Application**  
-   Begin by deploying the Pet Shop application in the default namespace. 
-
-```bash
-kubectl apply -f https://raw.githubusercontent.com/Azure-Samples/aks-store-demo/refs/heads/main/aks-store-quickstart.yaml
-```
-
-2. **Verify Deployment**
-Ensure all application components are up and running. This confirms the environment is ready for policy testing.
-
-```bash
-kubectl get pods
-```
-
-3. **Access the application UI**
-This application uses a loadblalncer service to allow access to the application UI. Run the following command to get the storefront service IP address.
-
-```bash
-kubectl get svc store-front
-```
-
-Copy the EXTERNAL-IP of the `store-front` service to your browser to access the application.
-
-![Alt Text](assets/ACNS-Pets_App.png)
-
-
-## Enforcing Network Policy 
-
-In this section, we’ll apply network policies to control traffic flow to and from the Pet Shop application. We will start with standard network policy that doesn't require ACNS, then we enforce more advanced fqdn policie.  
-
-1. **Test Connectivity**
 By default all traffic is allowed in kubernetes. Do the following test to make sure that all traffic is allowed by default
 
 ```bash
@@ -361,21 +384,23 @@ kubectl exec -it $(kubectl get po -l app=order-service -ojsonpath='{.items[0].me
 kubectl exec -it $(kubectl get po -l app=order-service -ojsonpath='{.items[0].metadata.name}')  -- sh -c 'nc -zv -w2 product-service.default 3002'
 ```
 
-2. **Deploy Netwpork Policy**
+#### Deploy Network Policy
+
 Now, let's deploy some network policy to allow only the required ports in the default namespace.
 
 ```bash
-kubectl apply -f assets/neywork_policy.yaml
+kubectl apply -f assets/network_policy.yaml
 ```
 
-3. **Verify Policies**
+#### Verify Policies
+
 Review the created policies using the following command
 
 ```bash
 kubectl get cnp
-``` 
+```
 
-Ensure that only allowed connections succeed and others are blocked. 
+Ensure that only allowed connections succeed and others are blocked.
 For example, order-service should not be able to access www.bing.com or the product-service.
 
 ```bash
@@ -386,82 +411,93 @@ kubectl exec -it $(kubectl get po -l app=order-service -ojsonpath='{.items[0].me
 kubectl exec -it $(kubectl get po -l app=order-service -ojsonpath='{.items[0].metadata.name}')  -- sh -c 'nc -zv -w2 product-service.default 3002'
 ```
 
-At the same time, we should be able to access the pet shop app UI and order product norrmally. 
+At the same time, we should be able to access the pet shop app UI and order product normally.
 
-
-##  Configuring FQDN Filtering using ACNS
+### Configuring FQDN Filtering using ACNS
 
 In this section, we’ll apply FQDN-based network policies to control outbound access to specific domains. This ACNS feature is only enabled for clusters using Azure CNI Powered by Cilium.
 
 **Goal:** The application Owner is asking to allow the order-service to contact Microsoft Graph API.
 
-1. **Test Connectivity**
+#### Test Connectivity
+
 Let's start with testing the connection from the `order service` to Microsoft Graph
 
 ```bash
 kubectl exec -it $(kubectl get po -l app=order-service -ojsonpath='{.items[0].metadata.name}')  -- sh -c 'wget https://graph.microsoft.com'
 ```
-As you can see the traffic is denied. This is an expected behaviour because we have implemented zero trust security policy and denying any unwanted traffic.
 
-2. **Create an FQDN Policy**  
+As you can see the traffic is denied. This is an expected behavior because we have implemented zero trust security policy and denying any unwanted traffic.
+
+#### Create an FQDN Policy
+
 To limit egress to certain domains, apply an FQDN policy. This policy permits access only to specified URLs, ensuring controlled outbound traffic.
-Note: FQDN filtering requires ACNS to be enabled 
+
+<div class="info" data-title="Note">
+
+> FQDN filtering requires ACNS to be enabled
+
+</div>
 
 ```bash
 kubectl apply -f assets/fqdn_policy.yaml
 ```
-3. **Verify FQDN Policy Enforcement**
-Now if we try to acccess Microsoft Graph API from order-service app, that should be allowed.
+
+#### Verify FQDN Policy Enforcement
+
+Now if we try to access Microsoft Graph API from order-service app, that should be allowed.
 
 ```bash
 kubectl exec -it $(kubectl get po -l app=order-service -ojsonpath='{.items[0].metadata.name}')  -- sh -c 'wget https://graph.microsoft.com'
 ```
 
-##  Monitoring Advanced Network Metrics and Flows
+### Monitoring Advanced Network Metrics and Flows
 
 With Grafana provided by ACNS, you can visualize real-time data and gain insights into network traffic patterns, performance, and policy effectiveness.
 
 Goal: Customer reported a problem in accessing the pets shop. We need to fix this issue
 
-1. **Introducing Chaos to Test container networking**
+#### Introducing Chaos to Test container networking
 
-let's start with applying the chaos policy to generate some drop traffic 
+Let's start with applying the chaos policy to generate some drop traffic
 
 ```bash
 kubectl apply -f assets/chaos_policy.yaml
 ```
 
-2. **Access Grafana Dashboard**
+#### Access Grafana Dashboard
 
 ACNS metrics provide insights into traffic volume, dropped packets, number of connections, etc. The metrics are stored in Prometheus format and, as such, you can view them in Grafana.
 Let's use grafana dashboard to see what's wrong
 
-From your browser, navigate to [Azure Portal](https://aka.ms/publicportal), search for _acns-grafana_ resource, then click on the _endpoint_ link
+From your browser, navigate to [Azure Portal](https://aka.ms/publicportal), search for **grafana** resource, then click on the endpoint link
+
 ![Alt Text](assets/ACNS-az_grafana.png)
 
-Part of ACNS we proivide pre-definied networking dashboards. Review the avilable dashboards 
+Part of ACNS we provide pre-defined networking dashboards. Review the available dashboards
+
 ![Alt Text](assets/ACNS-grafana_dashboards.png)
 
-you can start with the _Kubernetes / Networking / Clusters_ dashboard to get an over view of whats is happeing in the cluster 
+You can start with the **Kubernetes / Networking / Clusters** dashboard to get an over view of whats is happening in the cluster.
 
 ![Alt Text](assets/ACNS-network_clusters_dashboard.png)
 
-Lets' change the view to the  _Kubernetes / Networking / Drops_, select the _default_ namespace, and _store-front_ workload  
+Lets' change the view to the **Kubernetes / Networking / Drops**, select the **pets** namespace, and **store-front** workload
 
 ![Alt Text](assets/ACNS-dropps_incoming_traffic.png)
 
-Now you can see increase in the dropped incomming traffic and the reason is "policy_denied" so now we now the reason that something was wrong with the network policy. let's dive dipper and understand why this is happening
+Now you can see increase in the dropped incoming traffic and the reason is "policy_denied" so now we now the reason that something was wrong with the network policy. let's dive dipper and understand why this is happening
 
-[Optional] Famliarize yourself with the other dashobards for DNS, and pod flows
+[Optional] Familiarize yourself with the other dashboards for DNS, and pod flows
 
-| ![DNS Dashboard](assets/ACNS-DNS_Dashboard.png) | ![Pod Flows Dashbiard](assets/ACNS-pod-flows-dashboard.png) |
-|-------------------------------|-------------------------------|
+| ![DNS Dashboard](assets/ACNS-DNS_Dashboard.png) | ![Pod Flows Dashboard](assets/ACNS-pod-flows-dashboard.png) |
+| ----------------------------------------------- | ----------------------------------------------------------- |
 
+#### Observe network flows with hubble
 
-3. **observe network flows with hubble** 
 ACNS integrates with Hubble to provide flow logs and deep visibility into your cluster's network activity. All communications to and from pods are logged allowing you to investigate connectivity issues over time.
 
-We aready have hubble installed in the cluster. check Hubble pods are running using the `kubectl get pods` command. 
+We already have hubble installed in the cluster. check Hubble pods are running using the `kubectl get pods` command.
 
 ```bash
 kubectl get pods -o wide -n kube-system -l k8s-app=hubble-relay
@@ -469,7 +505,9 @@ kubectl get pods -o wide -n kube-system -l k8s-app=hubble-relay
 
 Your output should look similar to the following example output:
 
-`hubble-relay-7ddd887cdb-h6khj     1/1  Running     0       23h` 
+```text
+hubble-relay-7ddd887cdb-h6khj     1/1  Running     0       23h
+```
 
 First we need to port forward the hubble relay traffic
 
@@ -477,39 +515,39 @@ First we need to port forward the hubble relay traffic
 kubectl port-forward -n kube-system svc/hubble-relay --address 127.0.0.1 4245:443
 ```
 
-Using hubble we will look for what is dropped 
+Using hubble we will look for what is dropped
 
 ```bash
 hubble observe --verdict DROPPED
 ```
 
-Here we can see traffic comming from world dropped in frontstore 
+Here we can see traffic coming from world dropped in store-front
 
 ![Alt Text](assets/ACNS-hubble_cli.png)
 
-
-So now we can tell that there is a problem with the frontend ingress traffic configureation, lets review the `allow-store-front-traffic` policy 
+So now we can tell that there is a problem with the frontend ingress traffic configuration, let's review the `allow-store-front-traffic` policy
 
 ```bash
 kubectl describe cnp allow-store-front-traffic
 ```
 
-here we go, we see that the Ingress gtraffic is not allowed 
+Here we go, we see that the Ingress traffic is not allowed
+
 ![Alt Text](assets/ACNS-policy_output.png)
 
-Now to solve the problem we will apply the original 
+Now to solve the problem we will apply the original
 
 ```bash
 kubectl apply -f assets/allow-store-front-traffic.yaml
 ```
 
-And finally our pets applications back to live 
+And finally our pets applications back to live
 
 ![Alt Text](assets/ACNS-Pets_App.png)
 
-## [Optional] configure Hubble UI to visualize traffic 
+### Configure Hubble UI to visualize traffic
 
-1. **Install hubble UI**
+#### Install Hubble UI
 
 Apply the hubble-ui.yaml manifest to your cluster, using the following command
 
@@ -517,16 +555,19 @@ Apply the hubble-ui.yaml manifest to your cluster, using the following command
 kubectl apply -f assets/hubble_UI.yaml
 ```
 
-2. **Forward Hubble Relay Traffic**
+#### Forward Hubble Relay Traffic
+
 Set up port forwarding for Hubble UI using the kubectl port-forward command.
+
 ```bash
 kubectl -n kube-system port-forward svc/hubble-ui 12000:80
 ```
-3. **Aceess Hubble UI**
+
+#### Access Hubble UI
+
 Access Hubble UI by entering http://localhost:12000/ into your web browser.
 
 ![Alt Text](assets/ACNS-Hubble_UI.png)
-
 
 ### Istio Service Mesh
 
@@ -552,7 +593,7 @@ In the Istio-based service mesh addon for Azure Kubernetes Service, by default t
 
 In this lab, we will create our on root CA, along with an intermediate CA, and configure the Istio addon to issue intermediate certificates to the Istio CAs that run in each cluster. An Istio CA can sign workload certificates using the administrator-specified certificate and key, and distribute an administrator-specified root certificate to the workloads as the root of trust.
 
-##### Clone the Istio Repo 
+##### Clone the Istio Repo
 
 To expedite the process of create the necessary certificates needed, we will leverage the certificate tooling provided by the Istio open-source project.
 
@@ -593,7 +634,7 @@ This will create a directory called `intermediate` which will contain the interm
 
 #### Add the CA Certificates to Azure Key Vault
 
-We will utilize Azure KeyVault to store the root and intermediate CA certificate information. 
+We will utilize Azure KeyVault to store the root and intermediate CA certificate information.
 
 In the `akslab-certs` directory, run the following commands.
 
@@ -611,9 +652,14 @@ The Azure Key Vault provider for Secrets Store CSI Driver allows for the integra
 This integration will allow AKS to create, store, and retrieve Kubernetes secrets from Azure Key Vault.
 
 Run the following command to enable the AKS Azure Key Vault secrets provider.
+
 ```bash
-az aks enable-addons --addons azure-keyvault-secrets-provider --resource-group ${RG_NAME} --name ${AKS_NAME}
+az aks enable-addons \
+--addons azure-keyvault-secrets-provider \
+--resource-group ${RG_NAME} \
+--name ${AKS_NAME}
 ```
+
 #### Authorize the user-assigned managed identity of the AKS Azure Key Vault provider add-on to have access to Azure Key Vault
 
 When you enable the Azure Key Vault provider for the AKS cluster, a user-assigned managed identity is created for the cluster. We will provide the managed identity with access to Azure Key Vault to retrieve the CA certificate information needed when we deploy the AKS Istio addon.
@@ -621,9 +667,17 @@ When you enable the Azure Key Vault provider for the AKS cluster, a user-assigne
 Run the following commands to add an Azure role assignment for Key Vault administrator for the add-on's user-assigned managed identity.
 
 ```bash
-OBJECT_ID=$(az aks show --resource-group ${RG_NAME} --name ${AKS_NAME} --query 'addonProfiles.azureKeyvaultSecretsProvider.identity.objectId' -o tsv)
+OBJECT_ID=$(az aks show \
+--resource-group ${RG_NAME} \
+--name ${AKS_NAME} \
+--query 'addonProfiles.azureKeyvaultSecretsProvider.identity.objectId' \
+-o tsv)
 
-az role assignment create --role "Key Vault Administrator" --assignee-object-id ${OBJECT_ID} --assignee-principal-type ServicePrincipal --scope ${AKV_ID}
+az role assignment create \
+--role "Key Vault Administrator" \
+--assignee-object-id ${OBJECT_ID} \
+--assignee-principal-type ServicePrincipal \
+--scope ${AKV_ID}
 ```
 
 #### Deploy Istio service mesh add-on with plug-in CA certificates
@@ -804,44 +858,38 @@ kubectl exec -it ${CURL_POD_NAME} -- curl -IL store-front.pets.svc.cluster.local
 
 Notice that the curl client failed to get a response from the **store-front** service. The error returned is the indication that the mTLS policy has been enforced, and that the **store-front** service has rejected the non mTLS communication from the test pod.
 
-
-
-
 ---
 
 ## Advanced Storage Concepts
 
 ### Storage Options
 
-Azure offers rich set of storage options that can be categorized into two buckets: Block Storage and Shared File Storage. You can choose the best match option based on the workload requirements. The following guidance can facilitate your evaluation: 
+Azure offers rich set of storage options that can be categorized into two buckets: Block Storage and Shared File Storage. You can choose the best match option based on the workload requirements. The following guidance can facilitate your evaluation:
 
-1. Select storage category based on the attach mode.
-Block Storage can be attached to a single node one time (RWO: Read Write Once), while Shared File Storage can be attached to different nodes one time (RWX: Read Write Many). If you need to access the same file from different nodes, you would need Shared File Storage. 
+- Select storage category based on the attach mode.
+  Block Storage can be attached to a single node one time (RWO: Read Write Once), while Shared File Storage can be attached to different nodes one time (RWX: Read Write Many). If you need to access the same file from different nodes, you would need Shared File Storage.
+- Select a storage option in each category based on characteristics and user cases.
 
-2. Select a storage option in each category based on characteristics and user cases. 
+  **Block storage category:**
+  | Storage option | Characteristics | User Cases |
+  | :-------------------------------------------------------------------------------------------: | :----------------------------------------------------------------: | :-----------------------------------------------------------------------------------------------------------------------: |
+  | [Azure Disks](https://learn.microsoft.com/azure/virtual-machines/managed-disks-overview) | Rich SKUs from low-cost HDD disks to high performance Ultra Disks. | Generic option for all user cases from Backup to database to SAP Hana. |
+  | [Elastic SAN](https://learn.microsoft.com/azure/storage/elastic-san/elastic-san-introduction) | Scalability up to millions of IOPS, Cost efficiency at scale | Tier 1 & 2 workloads, Databases, VDI hosted on any Compute options (VM, Containers, AVS) |
+  | [Local Disks](https://learn.microsoft.com/azure/virtual-machines/nvme-overview) | Priced in VM, High IOPS/Throughput and extremely low latency. | Applications with no data durability requirement or with built-in data replication support (e.g., Cassandra), AI training |
 
-Block storage category:
+  **Shared File Storage category:**
+  | Storage option | Characteristics | User Cases |
+  | :--------------------------------------------------------------------------------------------------------: | :-----------------------------------------------------------------------------------------: | :--------------------------------------------------------------------------------: |
+  | [Azure Files](https://learn.microsoft.com/azure/storage/files/storage-files-introduction) | Fully managed, multiple redundancy options. | General purpose file shares, LOB apps, shared app or config data for CI/CD, AI/ML. |
+  | [Azure NetApp Files](https://learn.microsoft.com/azure/azure-netapp-files/azure-netapp-files-introduction) | Fully managed ONTAP with high performance and low latency. | Analytics, HPC, CMS, CI/CD, custom apps currently using NetApp. |
+  | [Azure Blobs](https://learn.microsoft.com/azure/storage/blobs/storage-blobs-introduction) | Unlimited amounts of unstructured data, data lifecycle management, rich redundancy options. | Large scale of object data handling, backup |
 
-| Storage option    | Characteristics    | User Cases    |
-|:----------:|:----------:|:----------:|
-| [Azure Disks](https://learn.microsoft.com/en-us/azure/virtual-machines/managed-disks-overview)  | Rich SKUs from low-cost HDD disks to high performance Ultra Disks.   | Generic option for all user cases from Backup to database to SAP Hana.  |
-| [Elastic SAN](https://learn.microsoft.com/en-us/azure/storage/elastic-san/elastic-san-introduction)  | Scalability up to millions of IOPS, Cost efficiency at scale  | Tier 1 & 2 workloads, Databases, VDI hosted on any Compute options (VM, Containers, AVS)   |
-| [Local Disks](https://learn.microsoft.com/en-us/azure/virtual-machines/nvme-overview)  | Priced in VM, High IOPS/Throughput and extremely low latency.   | Applications with no data durability requirement or with built-in data replication support (e.g., Cassandra), AI training   |
+- Select performance tier, redundancy type on the storage option.
+  See the product page from above table for further evaluation of performance tier, redundancy type or other requirements.
 
-Shared File Storage category: 
+### Orchestration Options
 
-| Storage option    | Characteristics    | User Cases    |
-|:----------:|:----------:|:----------:|
-| [Azure Files](https://learn.microsoft.com/en-us/azure/storage/files/storage-files-introduction)  | Fully managed, multiple redundancy options.    | General purpose file shares, LOB apps, shared app or config data for CI/CD, AI/ML.  |
-| [Azure NetApp Files](https://learn.microsoft.com/en-us/azure/azure-netapp-files/azure-netapp-files-introduction)  | Fully managed ONTAP with high performance and low latency.  | Analytics, HPC, CMS, CI/CD, custom apps currently using NetApp.   |
-| [Azure Blobs](https://learn.microsoft.com/en-us/azure/storage/blobs/storage-blobs-introduction)  | Unlimited amounts of unstructured data, data lifecycle management, rich redundancy options.   | Large scale of object data handling, backup   |
-
-3. Select performance tier, redundancy type on the storage option.
-See the product page from above table for further evaluation of performance tier, redundancy type or other requirements. 
-
-### Orchestration options
-
-Besides invoking service REST API to ingest remote storage resources, there are two major ways to use storage options in AKS workloads: CSI (Container Storage Interface) drivers and Azure Container Storage. 
+Besides invoking service REST API to ingest remote storage resources, there are two major ways to use storage options in AKS workloads: CSI (Container Storage Interface) drivers and Azure Container Storage.
 
 #### CSI Drivers
 
@@ -849,20 +897,18 @@ Container Storage Interface is industry standard that enables storage vendors (S
 
 #### Azure Container Storage
 
-Azure Container Storage is built on top of CSI drivers to support greater scaling capability with storage pool and unified management experience across local & remote storage. If you want to simplify the use of local NVMe disks, or achieve higher pod scaling target,​ it’s the preferred option. 
+Azure Container Storage is built on top of CSI drivers to support greater scaling capability with storage pool and unified management experience across local & remote storage. If you want to simplify the use of local NVMe disks, or achieve higher pod scaling target,​ it’s the preferred option.
 
 Storage option support on CSI drivers and Azure Container Storage:
 
-| Storage option   | CSI drivers   | Azure Container Storage   |
-|:----------:|:----------:|:----------:|
-| [Azure Disks](https://learn.microsoft.com/en-us/azure/virtual-machines/managed-disks-overview)  | Support([CSI disks driver](https://learn.microsoft.com/en-us/azure/aks/azure-disk-csi))  | Support  |
-| [Elastic SAN](https://learn.microsoft.com/en-us/azure/storage/elastic-san/elastic-san-introduction)  | N/A  | Support  |
-| [Local Disks](https://learn.microsoft.com/en-us/azure/virtual-machines/nvme-overview)  | N/A (Host Path + Static Provisioner)  | Support  |
-| [Azure Files](https://learn.microsoft.com/en-us/azure/storage/files/storage-files-introduction)  | Support([CSI files driver](https://learn.microsoft.com/en-us/azure/aks/azure-files-csi))  | N/A  |
-| [Azure NetApp Files](https://learn.microsoft.com/en-us/azure/azure-netapp-files/azure-netapp-files-introduction)  | Support([CSI NetApp driver](https://learn.microsoft.com/en-us/azure/aks/azure-netapp-files-nfs))  | N/A  |
-| [Azure Blobs](https://learn.microsoft.com/en-us/azure/storage/blobs/storage-blobs-introduction)  | Support([CSI Blobs driver](https://learn.microsoft.com/en-us/azure/aks/azure-blob-csi?tabs=NFS))  | N/A  |
-
-
+|                                               Storage option                                               |                                        CSI drivers                                         | Azure Container Storage |
+| :--------------------------------------------------------------------------------------------------------: | :----------------------------------------------------------------------------------------: | :---------------------: |
+|          [Azure Disks](https://learn.microsoft.com/azure/virtual-machines/managed-disks-overview)          |     Support([CSI disks driver](https://learn.microsoft.com/azure/aks/azure-disk-csi))      |         Support         |
+|       [Elastic SAN](https://learn.microsoft.com/azure/storage/elastic-san/elastic-san-introduction)        |                                            N/A                                             |         Support         |
+|              [Local Disks](https://learn.microsoft.com/azure/virtual-machines/nvme-overview)               |                            N/A (Host Path + Static Provisioner)                            |         Support         |
+|         [Azure Files](https://learn.microsoft.com/azure/storage/files/storage-files-introduction)          |     Support([CSI files driver](https://learn.microsoft.com/azure/aks/azure-files-csi))     |           N/A           |
+| [Azure NetApp Files](https://learn.microsoft.com/azure/azure-netapp-files/azure-netapp-files-introduction) | Support([CSI NetApp driver](https://learn.microsoft.com/azure/aks/azure-netapp-files-nfs)) |           N/A           |
+|         [Azure Blobs](https://learn.microsoft.com/azure/storage/blobs/storage-blobs-introduction)          | Support([CSI Blobs driver](https://learn.microsoft.com/azure/aks/azure-blob-csi?tabs=NFS)) |           N/A           |
 
 ### Use Azure Container Storage for Replicated Ephemeral NVMe Disk
 
@@ -870,61 +916,44 @@ Deploy a MySQL Server to mount volumes using local NVMe storage via Azure Contai
 
 #### Setup Azure Container Storage
 
-Set the Azure environment variables:
+Follow the below steps to enable Azure Container Storage in an existing AKS cluster
+
+Run the following command to set the new node pool name.
 
 ```bash
-export AZURE_RESOURCE_GROUP=<your_resource_group>
-export AZURE_CLUSTER_NAME=<your_cluster_name>
+cat <<EOF >> .env
+ACSTOR_NODEPOOL_NAME="acstorpool"
+EOF
+source .env
 ```
 
-* Follow the below steps to enable Azure Container Storage in an existing AKS cluster
-
-  * Create a node pool with `Standard_L8s_v3` VMs.
-  ```bash
-  export ACSTOR_NODEPOOL_NAME=<node_pool_name>
-
-  az aks nodepool add --cluster-name $AZURE_CLUSTER_NAME --resource-group $AZURE_RESOURCE_GROUP \
-         --name $ACSTOR_NODEPOOL_NAME --node-vm-size Standard_L8s_v3 --node-count 3
-  ```
-
-  * Update the cluster to enable Azure Container Storage.
-  ```bash
-  az aks update --resource-group $AZURE_RESOURCE_GROUP --name $AZURE_CLUSTER_NAME \
-         --node-count 3 \
-         --os-sku AzureLinux \
-         --enable-azure-container-storage ephemeralDisk \
-         --azure-container-storage-nodepools $ACSTOR_NODEPOOL_NAME \
-         --storage-pool-option NVMe \
-         --node-vm-size Standard_L8s_v3 \
-         --ephemeral-disk-volume-type PersistentVolumeWithAnnotation
-  ```
-
-* Follow the below steps to create a new AKS cluster with Azure Container Storage enabled
+Run the following command to create a new node pool with `Standard_L8s_v3` VMs.
 
 ```bash
-export AZURE_LOCATION=<your_location>
-
-az group create --name $AZURE_RESOURCE_GROUP --location $AZURE_LOCATION
-
-az aks create --resource-group $AZURE_RESOURCE_GROUP --name $AZURE_CLUSTER_NAME \
-       --node-count 3 \
-       --os-sku AzureLinux \
-       --enable-azure-container-storage ephemeralDisk \
-       --storage-pool-option NVMe \
-       --node-vm-size Standard_L8s_v3 \
-       --ephemeral-disk-volume-type PersistentVolumeWithAnnotation
-
-export ACSTOR_NODEPOOL_NAME=nodepool1
+az aks nodepool add \
+--cluster-name ${AKS_NAME} \
+--resource-group ${RG_NAME} \
+--name ${ACSTOR_NODEPOOL_NAME} \
+--node-vm-size Standard_L8s_v3 \
+--node-count 3
 ```
 
-Complete the setup by fetching the access credentials and deleting the default storage pool.
+Update the cluster to enable Azure Container Storage.
+
 ```bash
-az aks get-credentials --resource-group $AZURE_RESOURCE_GROUP --name $AZURE_CLUSTER_NAME --overwrite-existing
-
-kubectl delete sp -n acstor ephemeraldisk-nvme
+az aks update \
+--resource-group ${RG_NAME} \
+--name ${AKS_NAME} \
+--enable-azure-container-storage ephemeralDisk \
+--azure-container-storage-nodepools ${ACSTOR_NODEPOOL_NAME} \
+--storage-pool-option NVMe \
+--node-vm-size Standard_L8s_v3 \
+--ephemeral-disk-volume-type PersistentVolumeWithAnnotation
 ```
 
-#### Checkpoint 1: Verify that all Azure Container Storage pods are in running state
+<div class="info" data-title="Note">
+
+> To create a new AKS cluster with Azure Container Storage, see the [Tutorial: Install Azure Container Storage for use with Azure Kubernetes Service](https://learn.microsoft.com/azure/storage/container-storage/install-container-storage-aks) documentation.
 
 Add `--watch` to wait a little bit until all the pods reaches Running state.
 
@@ -932,9 +961,10 @@ Add `--watch` to wait a little bit until all the pods reaches Running state.
 kubectl get pods -n acstor --watch
 ```
 
-#### Create a replicated Ephemeral Storage pool using CRDs
+#### Create a replicated ephemeral storage pool
 
 Storage pools can also be created using Kubernetes CRDs, as described here. This CRD generates a storage class called "acstor-(your-storage-pool-name-here)".
+
 ```bash
 kubectl apply -f - <<EOF
 apiVersion: containerstorage.azure.com/v1
@@ -949,12 +979,14 @@ spec:
       replicas: 3
 EOF
 ```
+
 Storage Class generated will be called "acstor-ephemeraldisk-nvme".
 
-#### Deploy a MySQL server which uses volume provisioned using "acstor-ephemeraldisk-nvme" storage class
+#### Deploy a MySQL server using acstor-ephemeraldisk-nvme storage class
 
-* This setup is a modified version of [this guide](https://kubernetes.io/docs/tasks/run-application/run-replicated-stateful-application/).
-* Deploy the config map and services:
+This setup is a modified version of [this guide](https://kubernetes.io/docs/tasks/run-application/run-replicated-stateful-application/).
+
+Deploy the config map and services:
 
 ```bash
 kuebctl apply -f - <<EOF
@@ -969,11 +1001,11 @@ data:
   primary.cnf: |
     # Apply this config only on the primary.
     [mysqld]
-    log-bin    
+    log-bin
   replica.cnf: |
     # Apply this config only on replicas.
     [mysqld]
-    super-read-only    
+    super-read-only
 ---
 # Headless service for stable DNS entries of StatefulSet members.
 apiVersion: v1
@@ -1009,7 +1041,7 @@ spec:
 EOF
 ```
 
-* Deploy The statefulset for MySQL server:
+Deploy The statefulset for MySQL server:
 
 ```bash
 kubectl apply -f - <<EOF
@@ -1049,7 +1081,7 @@ spec:
             cp /mnt/config-map/primary.cnf /mnt/conf.d/
           else
             cp /mnt/config-map/replica.cnf /mnt/conf.d/
-          fi          
+          fi
         volumeMounts:
         - name: conf
           mountPath: /mnt/conf.d
@@ -1071,7 +1103,7 @@ spec:
           # Clone data from previous peer.
           ncat --recv-only mysql-$(($ordinal-1)).mysql 3307 | xbstream -x -C /var/lib/mysql
           # Prepare the backup.
-          xtrabackup --prepare --target-dir=/var/lib/mysql          
+          xtrabackup --prepare --target-dir=/var/lib/mysql
         volumeMounts:
         - name: data
           mountPath: /var/lib/mysql
@@ -1156,7 +1188,7 @@ spec:
 
           # Start a server to send backups when requested by peers.
           exec ncat --listen --keep-open --send-only --max-conns=1 3307 -c \
-            "xtrabackup --backup --slave-info --stream=xbstream --host=127.0.0.1 --user=root"          
+            "xtrabackup --backup --slave-info --stream=xbstream --host=127.0.0.1 --user=root"
         volumeMounts:
         - name: data
           mountPath: /var/lib/mysql
@@ -1185,22 +1217,23 @@ spec:
 EOF
 ```
 
-#### Checkpoint 2: Verify that all the MySQL server's components are available
+#### Verify that all the MySQL server's components are available
 
-* Verify that 2 services were created (headless one for the statefulset and mysql-read for the reads) 
+Verify that 2 services were created (headless one for the statefulset and mysql-read for the reads)
 
 ```bash
-kubectl get svc -l app=mysql  
+kubectl get svc -l app=mysql
 ```
 
 Output should resemble like:
-```
+
+```text
 NAME         TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)    AGE
 mysql        ClusterIP   None           <none>        3306/TCP   5h43m
 mysql-read   ClusterIP   10.0.205.191   <none>        3306/TCP   5h43m
 ```
 
-* Verify that MySql server pod is running
+Verify that MySql server pod is running
 
 Add the `--watch` to wait and watch until the pod goes from Init to Running state.
 
@@ -1209,16 +1242,21 @@ kubectl get pods -l app=mysql -o wide --watch
 ```
 
 Output should resemble like:
-```
+
+```text
 NAME      READY   STATUS    RESTARTS   AGE   IP             NODE                                NOMINATED NODE   READINESS GATES
 mysql-0   2/2     Running   0          1m34s  10.244.3.16   aks-nodepool1-28567125-vmss000003   <none>           <none>
 ```
 
-**Keep a note of the node on which the `mysql-0` pod is running.**
+<div class="info" data-title="Note">
+
+> Keep a note of the node on which the `mysql-0` pod is running.
+
+</div>
 
 #### Inject data to the MySql database
 
-* Using the mysql-client image `mysql:5.7`, create a database `school` and a table `students`. Also, make a few entries in the table to verify persistence as below:
+Using the mysql-client image `mysql:5.7`, create a database `school` and a table `students`. Also, make a few entries in the table to verify persistence as below:
 
 ```bash
 kubectl run mysql-client --image=mysql:5.7 -i --rm --restart=Never -- \
@@ -1230,7 +1268,7 @@ INSERT INTO school.students VALUES (2, 'Student2');
 EOF
 ```
 
-#### Checkpoint 3: Verify the entries in the MySQL server
+#### Verify the entries in the MySQL server
 
 Run the following command to verify the creation of database, table and entries:
 
@@ -1240,7 +1278,8 @@ mysql -h mysql-read -e "SELECT * FROM school.students"
 ```
 
 Output:
-```
+
+```text
 +------------+----------+
 | RollNumber | Name     |
 +------------+----------+
@@ -1254,24 +1293,35 @@ pod "mysql-client" deleted
 #### Initiate the node failover
 
 Perform the following steps:
-* Capture the number of nodes in the default node pool set in the variable `$ACSTOR_NODEPOOL_NAME`,
-* Scale up the node pool to add one more node,
-* Capture the node on which the workload is running,
-* Delete the node on which the workload is running.
+
+- Capture the number of nodes in the default node pool set in the variable `$ACSTOR_NODEPOOL_NAME`,
+- Scale up the node pool to add one more node,
+- Capture the node on which the workload is running,
+- Delete the node on which the workload is running.
 
 ```bash
-NODE_COUNT=$(az aks nodepool show -g $AZURE_RESOURCE_GROUP --cluster-name $AZURE_CLUSTER_NAME --name $ACSTOR_NODEPOOL_NAME --query count --output tsv)
+NODE_COUNT=$(az aks nodepool show \
+-g ${RG_NAME} \
+--cluster-name ${AKS_NAME} \
+--name ${ACSTOR_NODEPOOL_NAME} \
+--query count \
+--output tsv)
 
-az aks nodepool scale -g $AZURE_RESOURCE_GROUP --cluster-name $AZURE_CLUSTER_NAME --name $ACSTOR_NODEPOOL_NAME --node-count $((NODE_COUNT+1)) --no-wait
+az aks nodepool scale \
+-g ${RG_NAME} \
+--cluster-name ${AKS_NAME} \
+--name ${ACSTOR_NODEPOOL_NAME} \
+--node-count $((NODE_COUNT+1)) \
+--no-wait
 
-POD_NAME=$(kubectl get pods -l app=mysql  -o custom-columns=":metadata.name" --no-headers)
+POD_NAME=$(kubectl get pods -l app=mysql -o custom-columns=":metadata.name" --no-headers)
 
-NODE_NAME=$(kubectl get pods $POD_NAME  -o jsonpath='{.spec.nodeName}')
+NODE_NAME=$(kubectl get pods $POD_NAME -o jsonpath='{.spec.nodeName}')
 
 kubectl delete node $NODE_NAME
 ```
 
-#### Checkpoint 4: Observe that the mysql pods are running
+#### Observe that the mysql pods are running
 
 Add the `--watch` to wait and watch until the pod goes from Init to Running state.
 
@@ -1280,16 +1330,21 @@ kubectl get pods -l app=mysql -o wide --watch
 ```
 
 Output should resemble like:
-```
+
+```text
 NAME      READY   STATUS    RESTARTS   AGE   IP             NODE                                NOMINATED NODE   READINESS GATES
 mysql-0   2/2     Running   0          3m25s  10.244.3.16   aks-nodepool1-28567125-vmss000002   <none>           <none>
 ```
 
-NOTE: Compare the `NODE` entry with the value obtained in **Checkpoint 2** and verify that they are different.
+<div class="info" data-title="Note">
+
+> Compare the `NODE` entry with the value and verify that they are different.
+
+</div>
 
 #### Verify successful data replication and persistence for MySQL Server
 
-* Verify the mount volume by injecting new data by running the following command:
+Verify the mount volume by injecting new data by running the following command:
 
 ```bash
 kubectl run mysql-client --image=mysql:5.7 -i --rm --restart=Never -- \
@@ -1299,7 +1354,7 @@ INSERT INTO school.students VALUES (4, 'Student4');
 EOF
 ```
 
-* Run the command to fetch the entries previously inserted into the database:
+Run the command to fetch the entries previously inserted into the database:
 
 ```bash
 kubectl run mysql-client --image=mysql:5.7 -i -t --rm --restart=Never -- \
@@ -1308,7 +1363,7 @@ mysql -h mysql-read -e "SELECT * FROM school.students"
 
 Output:
 
-```
+```text
 +------------+----------+
 | RollNumber | Name     |
 +------------+----------+
@@ -1323,16 +1378,19 @@ Output:
 pod "mysql-client" deleted
 ```
 
-The output obtained contains the values entered before the failover and observed in **Checkpoint 3**.This shows that the database and table entries in the MySQL Server were replicated and persisted across the failover of `mysql-0` pod.
-The output also demonstrates that, newer entries were successfully appended on the newly spawned mysql server application. 
+The output obtained contains the values entered before the failover. This shows that the database and table entries in the MySQL Server were replicated and persisted across the failover of `mysql-0` pod.
+The output also demonstrates that, newer entries were successfully appended on the newly spawned mysql server application.
 
 #### Summary
 
-* Create a replicated local NVMe storage pool `ephemeraldisk-nvme`.
-* Create a MySQL server statefulset whose `volumeTemplate` uses the storage pool's storage class `acstor-ephemeraldisk-nvme`.
-* Create entries into MySQL server.
-* Trigger a failover scenario by deleting the node on which the workload pod is running. Scale up the cluster by 1 node so that the 3 active nodes are still present.
-* Once the failover completes successfully, enter newer entries into the database and fetch all entries to verify that the data entered before the failover were successfully replicated and persisted across the failover and newer data were entered on top of the replicated data.
+In this section, we have demonstrated the following:
+
+- Create a replicated local NVMe storage pool `ephemeraldisk-nvme`.
+- Create a MySQL server statefulset whose `volumeTemplate` uses the storage pool's storage class `acstor-ephemeraldisk-nvme`.
+- Create entries into MySQL server.
+- Trigger a failover scenario by deleting the node on which the workload pod is running. Scale up the cluster by 1 node so that the 3 active nodes are still present.
+- Once the failover completes successfully, enter newer entries into the database and fetch all entries to verify that the data entered before the failover were successfully replicated and persisted across the failover and newer data were entered on top of the replicated data.
+
 ---
 
 ## Advanced Security Concepts
@@ -1614,7 +1672,7 @@ kubectl logs sample-workload-identity-key-vault
 
 ### Secure Supply Chain
 
-Containers Secure Supply Chain (CSSC) framework is a seamless, agile ecosystem of tools and processes built to integrate and execute security controls throughout the lifecycle of containers. The container secure supply chain strategy is built considering all the security needs of the container applications. To find out more about the CSSC framework, visit the [Azure Container Secure Supply Chain](https://learn.microsoft.com/en-us/azure/security/container-secure-supply-chain/articles/container-secure-supply-chain-implementation/containers-secure-supply-chain-overview) page.
+Containers Secure Supply Chain (CSSC) framework is a seamless, agile ecosystem of tools and processes built to integrate and execute security controls throughout the lifecycle of containers. The container secure supply chain strategy is built considering all the security needs of the container applications. To find out more about the CSSC framework, visit the [Azure Container Secure Supply Chain](https://learn.microsoft.com/azure/security/container-secure-supply-chain/articles/container-secure-supply-chain-implementation/containers-secure-supply-chain-overview) page.
 
 As a quick overview, a container supply chain is built in stages to ensure that the container is secure at every stage of the lifecycle. Microsoft identifies these stages in the container supply chain:
 
@@ -1650,66 +1708,47 @@ notation plugin ls
 #### Create Azure Container Registry and Azure Key Vault
 
 <div class="info" data-title="Note">
-If you have already created an Azure Container Registry and Azure Key Vault, you can skip this section. Make sure the environment variables `AKV_NAME` and `ACR_NAME` are set correctly.
+
+> If you have already created an Azure Container Registry and Azure Key Vault, you can skip this section. Make sure the environment variables `AKV_NAME` and `ACR_NAME` are set correctly.
+
 </div>
 
-Before beginning this exercise, ensure you have an Azure Container Registry (ACR) instance  provisioned. You can check to see if you have an ACR instance provisioned by running the following command:
+Before beginning this exercise, let's set the environment variables for the Azure Container Registry and Azure Key Vault which was created at the beginning of the lab with the Bicep template.
+
+Run the following command to get the name of the Azure Container Registry and Azure Key Vault, store them in the **.env** file, and source the file.
 
 ```bash
-az acr list --query "[].{name: name}" -o tsv
+cat <<EOF >> .env
+ACR_NAME="$(az acr list --resource-group ${RG_NAME} --query "[].name" -o tsv)"
+ACR_RESOURCE_ID="$(az acr show --name ${ACR_NAME} --query id -o tsv)"
+ACR_SERVER="$(az acr show -n ${ACR_NAME} --query loginServer -o tsv)"
+AKV_NAME="$(az keyvault list --resource-group ${RG_NAME} --query "[].name" -o tsv)"
+AKV_RESOURCE_ID="$(az keyvault show --name ${AKV_NAME} --query id -o tsv)"
+EOF
+source .env
 ```
 
-If you do not have an ACR instance provisioned, you will have to create one. You can create an ACR instance by running the following command:
+Set the local variables containing information about the certificate to be used for signing the container image.
 
 ```bash
-az acr create \
---name ${ACR_NAME} \
---resource-group ${RG_NAME} \
---sku Standard \
---location ${LOCATION}
---identity
-```
-
-Next, check to see if you have a Key Vault instance provisioned. You can check to see if you have a Key Vault instance provisioned by running the following command:
-
-```bash
-az keyvault list --query "[].{name: name}" -o tsv
-```
-
-If you do not have a Key Vault instance provisioned, you will have to create one. You can create an Azure Key Vault instance by running the following command (which also saves the resource ID in a local variable for later use):
-
-```bash
-AKV_RESOURCE_ID="$(az keyvault create \
---name ${AKV_NAME} \
---resource-group ${RG_NAME} \
---location "${LOCATION}" \
---enable-purge-protection \
---enable-rbac-authorization \
---query "id" \
---output tsv)"
-```
-
-Once you confirmed that you have an ACR and Azure Key Vault instances provisioned, set the local variables containing information about the certificate to be used for signing the container image.
-
-```bash
-CERT_NAME=wabbit-networks-io
+cat <<EOF >> .env
+CERT_NAME="wabbit-networks-io"
 CERT_SUBJECT="CN=wabbit-networks.io,O=Notation,L=Seattle,ST=WA,C=US"
-CERT_PATH=./${CERT_NAME}.pem
+CERT_PATH="./${CERT_NAME}.pem"
+EOF
+source .env
 ```
 
 Now set the local variables containing information about the container registry and the image source code directory containing the Dockerfile to build.
 
 ```bash
-REPO=net-monitor
-TAG=v1
-IMAGE=$REGISTRY/${REPO}:$TAG
-IMAGE_SOURCE=https://github.com/wabbit-networks/net-monitor.git#main
-```
-
-Use the following command to set a local variable containing the subscription id.
-
-```bash
-SUB_ID=$(az account show --query id -o tsv)
+cat <<EOF >> .env
+REPO="net-monitor"
+TAG="v1"
+IMAGE="${ACR_SERVER}/${REPO}:${TAG}"
+IMAGE_SOURCE="https://github.com/wabbit-networks/net-monitor.git#main"
+EOF
+source .env
 ```
 
 #### Authorize access to the container registry
@@ -1717,12 +1756,11 @@ SUB_ID=$(az account show --query id -o tsv)
 The `AcrPush` and `AcrPull` roles are required to push and pull images from the Azure Container Registry. Run the following command to save your Azure user id in a local variable and assign the AcrPush and AcrPull roles to it.
 
 ```bash
-USER_ID=$(az ad signed-in-user show --query id -o tsv)
 az role assignment create \
 --role "AcrPull" \
 --role "AcrPush" \
---assignee $USER_ID \
---scope "/subscriptions/${SUB_ID}/resourceGroups/${RG_NAME}/providers/Microsoft.ContainerRegistry/registries/$ACR_NAME"
+--assignee ${USER_ID} \
+--scope ${ACR_RESOURCE_ID}
 ```
 
 #### Authorize access to the key vault
@@ -1738,13 +1776,13 @@ Assign the roles using the following commands:
 az role assignment create \
 --role "Key Vault Certificates Officer" \
 --role "Key Vault Crypto User" \
---assignee $USER_ID \
---scope $(az keyvault show --name $AKV_NAME --query "id" -o tsv)
+--assignee ${USER_ID} \
+--scope ${AKV_RESOURCE_ID=}
 ```
 
 #### Create a self-signed certificate in Azure Key Vault
 
-Use the following command to create a certificate policy file named `my_policy.json` which will be used the create the self-signed certificate in Azure Key Vault. The subject value will be used as the trust indentity during verification.
+Use the following command to create a certificate policy file named `my_policy.json` which will be used the create the self-signed certificate in Azure Key Vault. The subject value will be used as the trust identity during verification.
 
 ```bash
 cat <<EOF > ./my_policy.json
@@ -1769,7 +1807,7 @@ cat <<EOF > ./my_policy.json
     "keyUsage": [
         "digitalSignature"
     ],
-    "subject": "$CERT_SUBJECT",
+    "subject": "${CERT_SUBJECT}",
     "validityInMonths": 12
     }
 }
@@ -1780,36 +1818,36 @@ Use the following command to create a certificate compatible with [Notary Projec
 
 ```bash
 az keyvault certificate create \
---vault-name $AKV_NAME \
---name $CERT_NAME \
+--vault-name ${AKV_NAME} \
+--name ${CERT_NAME} \
 --policy @my_policy.json \
 ```
 
 #### Signing a Container Image using Notation and Azure Key Vault Plugin
 
-To sign a container image usign Notation and Azure Key Vault, you first need to authenticate to your Azure Container Registry using the following command:
+To sign a container image using Notation and Azure Key Vault, you first need to authenticate to your Azure Container Registry using the following command:
 
 ```bash
-az acr login --name $ACR_NAME
+az acr login --name ${ACR_NAME}
 ```
 
 Build and push a new image with ACR Tasks. Use the digest value to identify the image to sign.
 
 ```bash
-DIGEST=$(az acr build -r $ACR_NAME -t $REGISTRY/${REPO}:$TAG $IMAGE_SOURCE --no-logs --query "outputImages[0].digest" -o tsv)
-IMAGE=$REGISTRY/${REPO}@$DIGEST
+DIGEST="$(az acr build -r ${ACR_NAME} -t ${ACR_SERVER}/${REPO}:${TAG} ${IMAGE_SOURCE} --no-logs --query "outputImages[0].digest" -o tsv)"
+IMAGE="${ACR_SERVER}/${REPO}@${DIGEST}"
 ```
 
 If the image is built and stored in the registry, the tag serves as an identifier for the image.
 
 ```bash
-IMAGE=$REGISTRY/${REPO}:$TAG
+IMAGE="${ACR_SERVER}/${REPO}:${TAG}"
 ```
 
 Get the ID of the signing key. The following command will get the Key ID of the latest version of the certificate.
 
 ```bash
-KEY_ID=$(az keyvault certificate show -n $CERT_NAME --vault-name $AKV_NAME --query 'kid' -o tsv)
+KEY_ID="$(az keyvault certificate show -n $CERT_NAME --vault-name $AKV_NAME --query 'kid' -o tsv)"
 ```
 
 Sign the image with the [COSE](https://datatracker.ietf.org/doc/html/rfc9052) format using the Notation Azure Key Vault plugin and the key retrieved in the previous step with the following command:
@@ -1817,17 +1855,17 @@ Sign the image with the [COSE](https://datatracker.ietf.org/doc/html/rfc9052) fo
 ```bash
 notation sign \
 --signature-format cose \
---id $KEY_ID \
+--id ${KEY_ID} \
 --plugin azure-kv \
---plugin-config self_signed=true $IMAGE
+--plugin-config self_signed=true ${IMAGE}
 ```
 
 #### Verify the image using Notation
 
-To verify the signed container image, add the root certificate that signs the leaf certificate to the trust store. The following command will download the root certificate and add it to the trust store. In the case of a self-signed certificate, the root certificate *is* the self-signed certificate. Use the following command to download the root certificate:
+To verify the signed container image, add the root certificate that signs the leaf certificate to the trust store. The following command will download the root certificate and add it to the trust store. In the case of a self-signed certificate, the root certificate _is_ the self-signed certificate. Use the following command to download the root certificate:
 
 ```bash
-az keyvault certificate download --name $CERT_NAME --vault-name $AKV_NAME --file $CERT_PATH
+az keyvault certificate download --name ${CERT_NAME} --vault-name ${AKV_NAME} --file ${CERT_PATH}
 ```
 
 Add the root certificate to the trust store using the following command:
@@ -1835,7 +1873,7 @@ Add the root certificate to the trust store using the following command:
 ```bash
 STORE_TYPE="ca"
 STORE_NAME="wabbit-networks.io"
-notation cert add --type $STORE_TYPE --store $STORE_NAME $CERT_PATH
+notation cert add --type ${STORE_TYPE} --store ${STORE_NAME} ${CERT_PATH}
 ```
 
 Verify the image using the following command:
@@ -1853,13 +1891,13 @@ cat <<EOF > ./trust_policy.json
     "trustPolicies": [
         {
             "name": "wabbit-networks-images",
-            "registryScopes": [ "$REGISTRY/$REPO" ],
+            "registryScopes": [ "${ACR_SERVER}/${REPO}" ],
             "signatureVerification": {
-                "level" : "strict" 
+                "level" : "strict"
             },
-            "trustStores": [ "$STORE_TYPE:$STORE_NAME" ],
+            "trustStores": [ "${STORE_TYPE}:${STORE_NAME}" ],
             "trustedIdentities": [
-                "x509.subject: $CERT_SUBJECT"
+                "x509.subject: ${CERT_SUBJECT}"
             ]
         }
     ]
@@ -1884,7 +1922,7 @@ Upon successful verification of the image using the trust policy, the sha256 dig
 
 ---
 
-## Advanced Monitoring Concepts
+## Advanced Observability Concepts
 
 Monitoring your AKS cluster has never been easier. Services like Azure Managed Prometheus and Azure Managed Grafana provide a fully managed monitoring solution for your AKS cluster all while using industry standard cloud-native tools. You can always deploy the open-source Prometheus and Grafana to your AKS cluster, but with Azure Managed Prometheus and Azure Managed Grafana, you can save time and resources by letting Azure manage the infrastructure for you.
 
@@ -2067,7 +2105,7 @@ It also shows you the "idle charges" which is a great way to see if you are over
 
 ---
 
-## Cluster Update Management
+## Update and Multi-Cluster Management
 
 Maintaining your AKS cluster's updates is crucial for operational hygiene. Neglecting this can lead to severe issues, including losing support and becoming vulnerable to known CVEs (Common Vulnerabilities and Exposures) attacks. In this section, we will look and examine all tiers of your AKS infrastructure, and discuss and show the procedures and best practices to keep your AKS cluster up-to-date.
 
@@ -2431,6 +2469,10 @@ kubectl describe clusterresourceplacement my-lab-crp
 
 ## Summary
 
-### Resources
+### Additional Resources
 
+- [Cluster operator and developer best practices to build and manage applications on Azure Kubernetes Service (AKS)](https://learn.microsoft.com/azure/aks/best-practices)
 - [Set up Advanced Network Observability for Azure Kubernetes Service (AKS)](https://learn.microsoft.com/azure/aks/advanced-network-observability-cli?tabs=cilium)
+- Private cluster
+- Secure baseline
+- etc.
