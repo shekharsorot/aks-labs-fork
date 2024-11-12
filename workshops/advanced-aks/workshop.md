@@ -108,7 +108,7 @@ az group create \
 Run the following command to download the Bicep template file to deploy the lab resources.
 
 ```bash
-curl  -o main.bicep ./assets/main.bicep
+curl  -o main.bicep https://azure-samples.github.io/aks-labs/workshops/advanced-aks/assets/main.bicep
 ```
 
 Verify the contents of the **main.bicep** file by running the following command.
@@ -437,7 +437,7 @@ Now, let's deploy some network policy to allow only the required ports in the pe
 Run the following command to download the network policy manifest file.
 
 ```bash
-curl -o acns-network-policy.yaml ./assets/acns-network-policy.yaml
+curl -o acns-network-policy.yaml https://azure-samples.github.io/aks-labs/workshops/advanced-aks/assets/acns-network-policy.yaml
 ```
 
 Take a look at the network policy manifest file by running the following command.
@@ -529,7 +529,7 @@ To limit egress to certain domains, apply an FQDN policy. This policy permits ac
 Run the following command to download the FQDN policy manifest file.
 
 ```bash
-curl -o acns-network-policy-fqdn.yaml ./assets/acns-network-policy-fqdn.yaml
+curl -o acns-network-policy-fqdn.yaml https://azure-samples.github.io/aks-labs/workshops/advanced-aks/assets/acns-network-policy-fqdn.yaml
 ```
 
 Take a look at the FQDN policy manifest file by running the following command.
@@ -576,7 +576,7 @@ Let's start by applying a new network policy to cause some chaos in the network.
 Run the following command to download the chaos policy manifest file.
 
 ```bash
-curl -o acns-network-policy-chaos.yaml ./assets/acns-network-policy-chaos.yaml
+curl -o acns-network-policy-chaos.yaml https://azure-samples.github.io/aks-labs/workshops/advanced-aks/assets/acns-network-policy-chaos.yaml
 ```
 
 Run the following command to examine the chaos policy manifest file.
@@ -719,7 +719,7 @@ Now to solve the problem we will apply the original policy.
 Run the following command to apply the original network policy to the pets namespace.
 
 ```bash
-curl -o acns-network-policy-allow-store-front-traffic.yaml ./assets/acns-network-policy-allow-store-front-traffic.yaml
+curl -o acns-network-policy-allow-store-front-traffic.yaml https://azure-samples.github.io/aks-labs/workshops/advanced-aks/assets/acns-network-policy-allow-store-front-traffic.yaml
 ```
 
 View the contents of the network policy manifest file.
@@ -743,7 +743,7 @@ You should now see the traffic flowing again and you are able to access the pets
 Run the following command to download the Hubble UI manifest file.
 
 ```bash
-curl -o acns-hubble-ui.yaml ./assets/acns-hubble-ui.yaml
+curl -o acns-hubble-ui.yaml https://azure-samples.github.io/aks-labs/workshops/advanced-aks/assets/acns-hubble-ui.yaml
 ```
 
 Optionally, run the following command to take a look at the Hubble UI manifest file.
@@ -1268,7 +1268,7 @@ This setup is a modified version of [this guide](https://kubernetes.io/docs/task
 Run the following command to download the MySQL manifest file.
 
 ```bash
-curl -o acstor-mysql-config-services.yaml ./assets/acstor-mysql-config-services.yaml
+curl -o acstor-mysql-config-services.yaml https://azure-samples.github.io/aks-labs/workshops/advanced-aks/assets/acstor-mysql-config-services.yaml
 ```
 
 Optionally, run the following command to take a look at the MySQL manifest file.
@@ -1288,7 +1288,7 @@ Next, we'll deploy the MySQL server using the new storage class.
 Run the following command to download the MySQL statefulset manifest file.
 
 ```bash
-curl -o acstor-mysql-statefulset.yaml ./assets/acstor-mysql-statefulset.yaml
+curl -o acstor-mysql-statefulset.yaml https://azure-samples.github.io/aks-labs/workshops/advanced-aks/assets/acstor-mysql-statefulset.yaml
 ```
 
 Optionally, run the following command to take a look at the MySQL statefulset manifest file.
