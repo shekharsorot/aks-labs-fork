@@ -347,7 +347,7 @@ Run the following command to create a namespace for the application.
 kubectl create namespace pets
 ```
 
-Run the following command to install the application in the **pets** namespace using the following commands.
+Run the following command to install the application in the **pets** namespace.
 
 ```bash
 kubectl apply -f https://raw.githubusercontent.com/Azure-Samples/aks-store-demo/refs/heads/main/aks-store-quickstart.yaml -n pets
