@@ -203,7 +203,8 @@ az aks create \
 --network-policy cilium \
 --ssh-access disabled \
 --enable-managed-identity \
---enable-acns
+--enable-acns \
+--generate-ssh-keys
 ```
 
 The command above will deploy an AKS cluster with the following configurations:
