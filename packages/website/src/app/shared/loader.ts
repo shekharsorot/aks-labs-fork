@@ -57,10 +57,10 @@ export async function loadFile<E = {}>(
 }
 
 export function updateAssetsBasePath(markdown: string, baseUrl: string): string {
-  // If the markdown is from a GitHub raw URL, don't update the assets path
-  if (baseUrl.startsWith('https://raw.githubusercontent.com')) {
-    return markdown;
-  }
+  // // If the markdown is from a GitHub raw URL, don't update the assets path
+  // if (baseUrl.startsWith('https://raw.githubusercontent.com')) {
+  //   return markdown;
+  // }
 
   if (baseUrl.endsWith('/')) {
     baseUrl = baseUrl.substring(0, baseUrl.length - 1);
