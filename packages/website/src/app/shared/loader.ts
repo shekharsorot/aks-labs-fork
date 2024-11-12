@@ -57,6 +57,11 @@ export async function loadFile<E = {}>(
 }
 
 export function updateAssetsBasePath(markdown: string, baseUrl: string): string {
+  // If the markdown is from a GitHub raw URL, don't update the assets path
+  if (baseUrl.startsWith('https://raw.githubusercontent.com')) {
+    return markdown;
+  }
+
   if (baseUrl.endsWith('/')) {
     baseUrl = baseUrl.substring(0, baseUrl.length - 1);
   }
@@ -94,7 +99,7 @@ export async function loadScripts(scripts: string[]): Promise<void> {
       })
     );
   }
-  return Promise.all(promises).then(() => {});
+  return Promise.all(promises).then(() => { });
 }
 
 export async function loadStyles(styles: string[]): Promise<void> {
@@ -111,7 +116,7 @@ export async function loadStyles(styles: string[]): Promise<void> {
       })
     );
   }
-  return Promise.all(promises).then(() => {});
+  return Promise.all(promises).then(() => { });
 }
 
 export function injectCode(code: string): void {
