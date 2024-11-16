@@ -127,7 +127,7 @@ AKS_ID=$(az aks show \
 --output tsv)
 ```
 
-Run the following command to get the developer's user principal ID.
+Run the following command to get a developer's user principal ID.
 
 ```bash
 DEV_USER_PRINCIPAL_ID=$(az ad user show \
@@ -159,7 +159,7 @@ Now, run the following command to get the dev namespace.
 kubectl get namespace dev
 ```
 
-Since there is no cached token in the kubelogin directory, this will trigger a new authentication prompt. Proceed to log in with the developer's user account.
+Since there is no cached token in the kubelogin directory, this will trigger a new authentication prompt. Proceed to log in with the developer's user account. So when you log in, be sure to click the **Use another account** button and enter a developer's user credentials.
 
 After logging in, head back to your terminal. You should see details of the **dev** namespace. This means that the dev user has the necessary permissions to access the **dev** namespace.
 
@@ -340,6 +340,10 @@ curl -o constrainttemplate.yaml https://raw.githubusercontent.com/azure-samples/
 
 - Open the constrainttemplate.yaml file in VS Code and take a look at the contents
 
+```bash
+code constrainttemplate.yaml
+```
+
 > [!KNOWLEDGE]
 > The constraint template includes Rego code on line 17 that enforces that all containers in the AKS cluster are sourced from approved container registries. The approved container registries can are defined in the **registry** parameter and this is where you can specify the container registry URL when implementing the ConstraintTemplate.
 
@@ -347,7 +351,7 @@ curl -o constrainttemplate.yaml https://raw.githubusercontent.com/azure-samples/
 - Select the **Base64Encoded** option
 
 > [!HELP]
-> The extension activation process can take a few minutes to complete. If you cannot get the extension to generate JSON from the ConstraintTemplate, that's okay, you will use a sample JSON file in the [Deploy a custom policy definition](#deploy-a-custom-policy-definition) section below.
+> The extension activation process can take a few minutes to complete. If you cannot get the extension to generate JSON from the ConstraintTemplate, that's okay, skip to the [Deploy a custom policy definition](#deploy-a-custom-policy-definition) section below where you will use a sample Azure Policy JSON file.
 
 - This will generate a new Azure Policy definition in the JSON format and encode the ConstraintTemplate in Base64 format
 
@@ -371,6 +375,11 @@ curl -o constrainttemplate-as-policy.json https://raw.githubusercontent.com/Azur
 ```
 
 - Open **constrainttemplate-as-policy.json** file and copy the JSON to the clipboard
+
+```bash
+code constrainttemplate-as-policy.json
+```
+
 - Navigate back to the [Azure Policy blade](https://portal.azure.com/#view/Microsoft_Azure_Policy/PolicyMenuBlade/~/Overview) in the Azure Portal
 - Click on **Definitions** under the **Authoring** section
 - Click on **+ Policy definition** then enter the following details:
@@ -392,7 +401,7 @@ With the custom policy definition created, you can now assign it to the AKS clus
 - In the **Parameters** tab, enter the following details:
   - Uncheck the **Only show parameters that need input or review** checkbox
   - **Effect**: Select **deny** from the dropdown
-  - **Namespace exclusions**: Replace the existing content with `["kube-system","kube-node-lease","kube-public","gatekeeper-system","app-routing-system","azappconfig-system","sc-system","aks-command"]`
+  - **Namespace exclusions**: Replace the existing content with `["kube-system","gatekeeper-system","azure-arc", "kube-node-lease","kube-public","app-routing-system","azappconfig-system","sc-system","aks-command"]`
   - **Image registry**: Enter your container registry URL as `@lab.CloudResourceTemplate(AKSAutomatic).Outputs[containerRegistryLoginServer]/`
 - Click **Review + create** to review the policy assignment
 - Click **Create** to assign the policy definition to the AKS cluster
@@ -625,7 +634,7 @@ az appconfig kv set \
 --yes
 ```
 
-After a minute or so, you can check to see if the configurations have been updated in the Kubernetes ConfigMap.
+After 10 seconds, you can check to see if the configurations have been updated in the Kubernetes ConfigMap.
 
 ```bash
 kubectl get cm -n dev myconfigmap -o jsonpath='{.data}'
@@ -854,7 +863,7 @@ kubectl get pod -l app=product-service -n dev -w
 Once you see the pods being restarted, press **Ctrl+C** to exit the watch then run the following command to confirm the resource requests and limits have been set.
 
 ```bash
-kubectl describe po -n dev $(kubectl get pod -n dev -l app=product-service --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[0].metadata.name}') | grep -i requests -A2
+kubectl describe po -n dev | grep -i requests -A2
 ```
 
 With requests in place, the scheduler can make better decisions about where to place the pod. The VPA will also adjust the resource requests based on the pod's usage. This is also especially important when using pod autoscaling features like the Kubernetes [HorizontalPodAutoscaler](https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/) or [KEDA](https://keda.sh).
@@ -895,7 +904,7 @@ There are other ways to deal with Karpenter's desire to consolidate nodes and st
 
 [Affinity and anti-affinity](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#affinity-and-anti-affinity) in Kubernetes is a way for you to influence the scheduling of pods in a Kubernetes cluster. We saw an example of this earlier when we deployed a pod with node affinity and tolerations to ensure that the pod was scheduled on a node that matched the criteria. Pod anti-affinity is used to ensure that pods are not scheduled on the same node. If you noticed, the product-service deployment included three replicas but they were all scheduled on the same node.
 
-You can confirm this by running the following command:
+Go back to your terminal and confirm this by running the following command:
 
 ```bash
 kubectl get po -n dev -l app=product-service -o wide
@@ -981,7 +990,7 @@ Run the following command to delete the product-service deployment.
 kubectl delete deployment product-service -n dev
 ```
 
-Run the following command to watch the nodes in the dev NodePool.
+Run the following command to watch the nodes in the dev NodePool get deleted.
 
 ```bash
 kubectl get nodes -l karpenter.sh/nodepool=devpool -w
@@ -1131,7 +1140,7 @@ How do I create an Azure OpenAI service with the GPT-3.5 Turbo model?
 ```
 
 > [!ALERT]
-> The Azure Copilot won't always provide you with the exact commands to run but it will provide you with the necessary information to get you started.
+> The Azure Copilot may not always provide you with the exact commands to run but it will provide you with the necessary information to get you started.
 
 The instructions should be very close to what you need. You can either follow the instructions and/or reference the docs it replies with or you can run the following commands to quickly create an Azure OpenAI service account.
 
