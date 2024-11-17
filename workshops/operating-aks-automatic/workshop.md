@@ -1150,6 +1150,7 @@ AI_NAME=$(az cognitiveservices account create \
 --resource-group myresourcegroup \
 --kind OpenAI \
 --sku S0 \
+--custom-domain myaiservice$RANDOM \
 --query name \
 --output tsv)
 ```
