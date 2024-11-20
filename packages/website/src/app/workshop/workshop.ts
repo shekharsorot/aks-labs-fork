@@ -2,7 +2,7 @@ import { getCurrentUrlWithQueryParams, MenuLink } from '../shared/link';
 import { FileContents, LoaderOptions, loadFile } from '../shared/loader';
 import { MarkdownHeading, getHeadings } from '../shared/markdown';
 
-const sectionSeparator = /(?:\n\n|\r\n\r\n)---(?:\n\n|\r\n\r\n)/;
+const sectionSeparator = /(?:\n\n|\r\n\r\n)(?:---|===)(?:\n\n|\r\n\r\n)/;
 
 export interface WorkshopSection {
   title: string;
@@ -32,6 +32,26 @@ export async function loadWorkshop(repoPath: string, options?: LoaderOptions): P
       // If we're missing the top-level heading, then add one using the title
       markdown = `<h1 class="visually-hidden">${fileContents.meta.title}</h1>\n\n${markdown}`;
     }
+
+    function replaceMarkdownTag(markdown: string, tag: string, className: string, dataTitle: string): string {
+      const regex = new RegExp(`> \\[!${tag}]\\n(> .*\\n)*`, 'gi');
+      return markdown.replace(regex, (match) => {
+        const contentWithoutTag = match.replace(new RegExp(`> \\[!${tag}]\\n`, 'i'), '');
+        return `<div class="${className}" data-title="${dataTitle}">\n\n${contentWithoutTag}\n</div>\n`;
+      });
+    }
+
+    markdown = replaceMarkdownTag(markdown, 'KNOWLEDGE', 'info', 'info');
+    markdown = replaceMarkdownTag(markdown, 'ALERT', 'important', 'important');
+    markdown = replaceMarkdownTag(markdown, 'NOTE', 'info', 'note');
+    markdown = replaceMarkdownTag(markdown, 'HELP', 'warning', 'warning');
+    markdown = replaceMarkdownTag(markdown, 'HINT', 'tip', 'tip');
+
+    // Replace all occurrences of the @lab.CloudPortalCredential(*).Username markdown tag with a placeholder
+    markdown = markdown.replace(/@lab\.CloudPortalCredential\([^)]+\)\.Username/gi, '<replace_with_dev_user_principal_name>');
+
+    // Replace all occurences of the @lab.CloudResourceTemplate(*).Outputs[*] markdown
+    markdown = markdown.replace(/@lab\.CloudResourceTemplate\([^)]+\)\.Outputs\[[^\]]+\]/gi, '<your_container_registry_url>');
 
     return { title, headings, markdown };
   });
