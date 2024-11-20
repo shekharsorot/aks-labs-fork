@@ -131,10 +131,13 @@ Run the following command to get a developer's user principal ID.
 
 ```bash
 DEV_USER_PRINCIPAL_ID=$(az ad user show \
---id @lab.CloudPortalCredential(Dev).Username \
+--id <dev_user_principal_name> \
 --query id \
 --output tsv)
 ```
+
+> [!NOTE]
+> Be sure to replace **<dev_user_principal_name>** with the actual user principal name of the developer.
 
 Run the following command to assign the **Azure Kubernetes Service RBAC Writer** role to the developer and have the permissions scoped only to the **dev** namespace. This ensures that the developer can only access the resources within the namespace and not the entire cluster.
 
@@ -402,7 +405,7 @@ With the custom policy definition created, you can now assign it to the AKS clus
   - Uncheck the **Only show parameters that need input or review** checkbox
   - **Effect**: Select **deny** from the dropdown
   - **Namespace exclusions**: Replace the existing content with `["kube-system","gatekeeper-system","azure-arc", "kube-node-lease","kube-public","app-routing-system","azappconfig-system","sc-system","aks-command"]`
-  - **Image registry**: Enter your container registry URL as `@lab.CloudResourceTemplate(AKSAutomatic).Outputs[containerRegistryLoginServer]/`
+  - **Image registry**: Enter your container registry URL as `<your_acr_name>.azurecr.io/`
 - Click **Review + create** to review the policy assignment
 - Click **Create** to assign the policy definition to the AKS cluster
 
