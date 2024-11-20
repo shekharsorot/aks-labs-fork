@@ -326,12 +326,12 @@ Using the Azure Policy extension for Visual Studio Code, you can easily create a
 - Open VS Code and make sure the Azure Policy extension is installed. If not, you can install it from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=AzurePolicy.azurepolicyextension)
 - To activate the extension, press **Ctrl+Shift+P** on your keyboard to open the command palette and type **Azure: Sign in** then use the web browser to authenticate with your admin user account
 
-> [!TIP]
+> [!HINT]
 > If you see multiple sign-in options, choose the one that has **azure-account.login** next to it.
 
 - Press **Ctrl+Shift+P** again and type **Azure: Select Subscriptions** then select the subscription that contains the AKS cluster
 
-> [!TIP]
+> [!HINT]
 > If you see multiple subscriptions, choose the one that has **azure-account.selectSubscriptions** next to it.
 
 - In VS Code sidebar, click the **Azure Policy** icon and you should see the subscription resources and policies panes being loaded
@@ -551,7 +551,7 @@ az aks connection create appconfig \
 
 This command will create a service connector to allow pods in the **dev** namespace to connect to the Azure App Configuration store using the User-Assigned Managed Identity that was created earlier. The service connector will grant the User-Assigned Managed Identity the necessary permissions to access the Azure App Configuration store and configure a federated credential on the managed identity that will allow the ServiceAccount assigned to the pod to authenticate via workload identity.
 
-> [!TIP]
+> [!HINT]
 > The AKS Service Connector is a powerful feature that allows you to connect your application pods to Azure services without having to manage any credentials. For more information, refer to the [service connector documentation](https://learn.microsoft.com/azure/service-connector/overview#what-services-are-supported-by-service-connector).
 
 ### Config sync to Kubernetes
@@ -860,7 +860,7 @@ Watch the pod for a few minutes and you should see the pod being restarted with 
 kubectl get pod -l app=product-service -n dev -w
 ```
 
-> [!IMPORTANT]
+> [!ALERT]
 > The VPA will evict pods only if the number of replicas is greater than 1. Otherwise, it will not evict the pod.
 
 Once you see the pods being restarted, press **Ctrl+C** to exit the watch then run the following command to confirm the resource requests and limits have been set.
