@@ -162,7 +162,10 @@ Now, run the following command to get the dev namespace.
 kubectl get namespace dev
 ```
 
-Since there is no cached token in the kubelogin directory, this will trigger a new authentication prompt. Proceed to log in with the developer's user account. So when you log in, be sure to click the **Use another account** button and enter a developer's user credentials.
+Since there is no cached token in the kubelogin directory, this will trigger a new authentication prompt. Proceed to log in with the developer's user account.
+
+> [!ALERT]
+> When you log in, be sure to click the **Use another account** button and enter a developer's user credentials.
 
 After logging in, head back to your terminal. You should see details of the **dev** namespace. This means that the dev user has the necessary permissions to access the **dev** namespace.
 
