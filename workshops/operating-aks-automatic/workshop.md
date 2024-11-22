@@ -43,7 +43,7 @@ The lab environment has been pre-configured for you with the following Azure res
 - [Azure Managed Grafana](https://learn.microsoft.com/azure/managed-grafana/overview)
 
 > [!NOTE]
-> The Bicep template used to deploy the lab environment can be found [here](https://raw.githubusercontent.com/azure-samples/aks-labs/refs/heads/ignite/workshops/operating-aks-automatic/assets/setup/bicep/aks.bicep). Just note that if you deploy this template, you will need to assign yourself the "Azure Kubernetes Service RBAC Cluster Admin" role to the AKS cluster and the "Grafana Admin" role to the Azure Managed Grafana resources.
+> The Bicep template used to deploy the lab environment can be found [here](https://raw.githubusercontent.com/azure-samples/aks-labs/refs/heads/main/workshops/operating-aks-automatic/assets/setup/bicep/aks.bicep). Just note that if you deploy this template, you will need to assign yourself the "Azure Kubernetes Service RBAC Cluster Admin" role to the AKS cluster and the "Grafana Admin" role to the Azure Managed Grafana resources.
 
 You will also need the following tools:
 
@@ -162,7 +162,10 @@ Now, run the following command to get the dev namespace.
 kubectl get namespace dev
 ```
 
-Since there is no cached token in the kubelogin directory, this will trigger a new authentication prompt. Proceed to log in with the developer's user account. So when you log in, be sure to click the **Use another account** button and enter a developer's user credentials.
+Since there is no cached token in the kubelogin directory, this will trigger a new authentication prompt. Proceed to log in with the developer's user account.
+
+> [!ALERT]
+> When you log in, be sure to click the **Use another account** button and enter a developer's user credentials.
 
 After logging in, head back to your terminal. You should see details of the **dev** namespace. This means that the dev user has the necessary permissions to access the **dev** namespace.
 
@@ -312,7 +315,7 @@ Although Gatekeepr is running in the cluster, it is worth noting that this Gatek
 Let's illustrate this by attempting to deploy a commonly used ConstraintTemplate that limits container images to only those from approved container registries. Run the following command to attempt to deploy the ConstraintTemplate.
 
 ```bash
-kubectl apply -f https://raw.githubusercontent.com/azure-samples/aks-labs/refs/heads/ignite/workshops/operating-aks-automatic/assets/files/constrainttemplate.yaml
+kubectl apply -f https://raw.githubusercontent.com/azure-samples/aks-labs/refs/heads/main/workshops/operating-aks-automatic/assets/files/constrainttemplate.yaml
 ```
 
 In the output you should see **This cluster is governed by Azure Policy. Policies must be created through Azure.**
@@ -338,7 +341,7 @@ Using the Azure Policy extension for Visual Studio Code, you can easily create a
 - Open the VS Code terminal and run the following command download the sample ConstraintTemplate file to your local machine
 
 ```bash
-curl -o constrainttemplate.yaml https://raw.githubusercontent.com/azure-samples/aks-labs/refs/heads/ignite/workshops/operating-aks-automatic/assets/files/constrainttemplate.yaml
+curl -o constrainttemplate.yaml https://raw.githubusercontent.com/azure-samples/aks-labs/refs/heads/main/workshops/operating-aks-automatic/assets/files/constrainttemplate.yaml
 ```
 
 - Open the constrainttemplate.yaml file in VS Code and take a look at the contents
@@ -374,7 +377,7 @@ With the custom policy rule written, you can now deploy it to Azure.
 - Open a terminal and run the following command to download the sample Azure Policy JSON file to your local machine
 
 ```bash
-curl -o constrainttemplate-as-policy.json https://raw.githubusercontent.com/Azure-Samples/aks-labs/refs/heads/ignite/workshops/operating-aks-automatic/assets/files/constrainttemplate-as-policy.json
+curl -o constrainttemplate-as-policy.json https://raw.githubusercontent.com/Azure-Samples/aks-labs/refs/heads/main/workshops/operating-aks-automatic/assets/files/constrainttemplate-as-policy.json
 ```
 
 - Open **constrainttemplate-as-policy.json** file and copy the JSON to the clipboard
