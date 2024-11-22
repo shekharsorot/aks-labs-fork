@@ -71,10 +71,18 @@ az extension add --name aks-preview
 az extension add --name k8s-extension
 ```
 
-Finally set the default location for resources that you will create in this lab using Azure CLI.
+Set the default location for resources that you will create in this lab using Azure CLI.
 
 ```bash
 az configure --defaults location=$(az group show -n myresourcegroup --query location -o tsv)
+```
+
+Finally, run the following command to get the AKS cluster credentials.
+
+```bash
+az aks get-credentials \
+--resource-group myresourcegroup \
+--name myakscluster
 ```
 
 You are now ready to get started with the lab!
@@ -95,14 +103,6 @@ To grant permissions to the AKS cluster, you will need to assign an Azure role t
 - [Azure Kubernetes Service RBAC Cluster Admin](https://learn.microsoft.com/azure/role-based-access-control/built-in-roles/containers#azure-kubernetes-service-rbac-cluster-admin)
 - [Azure Kubernetes Service RBAC Reader](https://learn.microsoft.com/azure/role-based-access-control/built-in-roles/containers#azure-kubernetes-service-rbac-reader)
 - [Azure Kubernetes Service RBAC Writer](https://learn.microsoft.com/azure/role-based-access-control/built-in-roles/containers#azure-kubernetes-service-rbac-writer)
-
-In your shell, run the following command to get the AKS cluster credentials.
-
-```bash
-az aks get-credentials \
---resource-group myresourcegroup \
---name myakscluster
-```
 
 A Kubernetes [namespace](https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/) is often used to isolate resources in a cluster and is common practice to create namespaces for different teams or environments. Run the following command to create a namespace for the dev team to use.
 
@@ -411,6 +411,9 @@ With the custom policy definition created, you can now assign it to the AKS clus
   - **Image registry**: Enter your container registry URL as `<your_acr_name>.azurecr.io/`
 - Click **Review + create** to review the policy assignment
 - Click **Create** to assign the policy definition to the AKS cluster
+
+> [!NOTE]
+> Be sure to replace **<your_acr_name>** with the actual container registry name.
 
 > [!ALERT]
 > This policy assignment uses **Namespace exclusions** to exclude system namespaces from the policy enforcement. This is important because you may deny the deployment of certain pods if the namespaces are not "whitelisted" in the policy assignment. The alternative here is to only apply the policy to a specific namespace by using the **Namespace inclusions** parameter instead and specifying the namespace you want to enforce the policy on.
