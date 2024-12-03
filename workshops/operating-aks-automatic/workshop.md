@@ -43,7 +43,7 @@ The lab environment has been pre-configured for you with the following Azure res
 - [Azure Managed Grafana](https://learn.microsoft.com/azure/managed-grafana/overview)
 
 > [!NOTE]
-> The Bicep template used to deploy the lab environment can be found [here](https://raw.githubusercontent.com/azure-samples/aks-labs/refs/heads/ignite/workshops/operating-aks-automatic/assets/setup/bicep/aks.bicep). Just note that if you deploy this template, you will need to assign yourself the "Azure Kubernetes Service RBAC Cluster Admin" role to the AKS cluster and the "Grafana Admin" role to the Azure Managed Grafana resources.
+> The Bicep template used to deploy the lab environment can be found [here](https://raw.githubusercontent.com/azure-samples/aks-labs/refs/heads/main/workshops/operating-aks-automatic/assets/setup/bicep/aks.bicep). Just note that if you deploy this template, you will need to assign yourself the "Azure Kubernetes Service RBAC Cluster Admin" role to the AKS cluster and the "Grafana Admin" role to the Azure Managed Grafana resources.
 
 You will also need the following tools:
 
@@ -71,10 +71,18 @@ az extension add --name aks-preview
 az extension add --name k8s-extension
 ```
 
-Finally set the default location for resources that you will create in this lab using Azure CLI.
+Set the default location for resources that you will create in this lab using Azure CLI.
 
 ```bash
 az configure --defaults location=$(az group show -n myresourcegroup --query location -o tsv)
+```
+
+Finally, run the following command to get the AKS cluster credentials.
+
+```bash
+az aks get-credentials \
+--resource-group myresourcegroup \
+--name myakscluster
 ```
 
 You are now ready to get started with the lab!
@@ -95,14 +103,6 @@ To grant permissions to the AKS cluster, you will need to assign an Azure role t
 - [Azure Kubernetes Service RBAC Cluster Admin](https://learn.microsoft.com/azure/role-based-access-control/built-in-roles/containers#azure-kubernetes-service-rbac-cluster-admin)
 - [Azure Kubernetes Service RBAC Reader](https://learn.microsoft.com/azure/role-based-access-control/built-in-roles/containers#azure-kubernetes-service-rbac-reader)
 - [Azure Kubernetes Service RBAC Writer](https://learn.microsoft.com/azure/role-based-access-control/built-in-roles/containers#azure-kubernetes-service-rbac-writer)
-
-In your shell, run the following command to get the AKS cluster credentials.
-
-```bash
-az aks get-credentials \
---resource-group myresourcegroup \
---name myakscluster
-```
 
 A Kubernetes [namespace](https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/) is often used to isolate resources in a cluster and is common practice to create namespaces for different teams or environments. Run the following command to create a namespace for the dev team to use.
 
@@ -162,7 +162,10 @@ Now, run the following command to get the dev namespace.
 kubectl get namespace dev
 ```
 
-Since there is no cached token in the kubelogin directory, this will trigger a new authentication prompt. Proceed to log in with the developer's user account. So when you log in, be sure to click the **Use another account** button and enter a developer's user credentials.
+Since there is no cached token in the kubelogin directory, this will trigger a new authentication prompt. Proceed to log in with the developer's user account.
+
+> [!ALERT]
+> When you log in, be sure to click the **Use another account** button and enter a developer's user credentials.
 
 After logging in, head back to your terminal. You should see details of the **dev** namespace. This means that the dev user has the necessary permissions to access the **dev** namespace.
 
@@ -312,7 +315,7 @@ Although Gatekeepr is running in the cluster, it is worth noting that this Gatek
 Let's illustrate this by attempting to deploy a commonly used ConstraintTemplate that limits container images to only those from approved container registries. Run the following command to attempt to deploy the ConstraintTemplate.
 
 ```bash
-kubectl apply -f https://raw.githubusercontent.com/azure-samples/aks-labs/refs/heads/ignite/workshops/operating-aks-automatic/assets/files/constrainttemplate.yaml
+kubectl apply -f https://raw.githubusercontent.com/azure-samples/aks-labs/refs/heads/main/workshops/operating-aks-automatic/assets/files/constrainttemplate.yaml
 ```
 
 In the output you should see **This cluster is governed by Azure Policy. Policies must be created through Azure.**
@@ -338,7 +341,7 @@ Using the Azure Policy extension for Visual Studio Code, you can easily create a
 - Open the VS Code terminal and run the following command download the sample ConstraintTemplate file to your local machine
 
 ```bash
-curl -o constrainttemplate.yaml https://raw.githubusercontent.com/azure-samples/aks-labs/refs/heads/ignite/workshops/operating-aks-automatic/assets/files/constrainttemplate.yaml
+curl -o constrainttemplate.yaml https://raw.githubusercontent.com/azure-samples/aks-labs/refs/heads/main/workshops/operating-aks-automatic/assets/files/constrainttemplate.yaml
 ```
 
 - Open the constrainttemplate.yaml file in VS Code and take a look at the contents
@@ -374,7 +377,7 @@ With the custom policy rule written, you can now deploy it to Azure.
 - Open a terminal and run the following command to download the sample Azure Policy JSON file to your local machine
 
 ```bash
-curl -o constrainttemplate-as-policy.json https://raw.githubusercontent.com/Azure-Samples/aks-labs/refs/heads/ignite/workshops/operating-aks-automatic/assets/files/constrainttemplate-as-policy.json
+curl -o constrainttemplate-as-policy.json https://raw.githubusercontent.com/Azure-Samples/aks-labs/refs/heads/main/workshops/operating-aks-automatic/assets/files/constrainttemplate-as-policy.json
 ```
 
 - Open **constrainttemplate-as-policy.json** file and copy the JSON to the clipboard
@@ -408,6 +411,9 @@ With the custom policy definition created, you can now assign it to the AKS clus
   - **Image registry**: Enter your container registry URL as `<your_acr_name>.azurecr.io/`
 - Click **Review + create** to review the policy assignment
 - Click **Create** to assign the policy definition to the AKS cluster
+
+> [!NOTE]
+> Be sure to replace **<your_acr_name>** with the actual container registry name.
 
 > [!ALERT]
 > This policy assignment uses **Namespace exclusions** to exclude system namespaces from the policy enforcement. This is important because you may deny the deployment of certain pods if the namespaces are not "whitelisted" in the policy assignment. The alternative here is to only apply the policy to a specific namespace by using the **Namespace inclusions** parameter instead and specifying the namespace you want to enforce the policy on.
