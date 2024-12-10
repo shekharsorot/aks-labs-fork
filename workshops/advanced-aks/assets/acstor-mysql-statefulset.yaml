@@ -165,6 +165,7 @@ spec:
         acstor.azure.com/accept-ephemeral-storage: "true"
     spec:
       accessModes: ["ReadWriteOnce"]
+      storageClassName: acstor-ephemeraldisk-nvme
       resources:
         requests:
           storage: 10Gi
